@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <strings.h>
+#include "string.h"
 #include "Collection.h"
 #include "List.h"
 #include "Vector.h"
@@ -32,7 +32,7 @@ BOOL AddElement(DWORD dwList, void* pElement, size_t nElemSize) {
     void* pCollectionElement = malloc(nElemSize);
     memcpy_s(pCollectionElement, nElemSize, pElement, nElemSize);
     if(dwList & ELinkedList) {
-        bResult = ListAddElement(dwList ^ ELinkedList, pCollectionElement, Struct);
+        bResult = ListAddElement(dwList ^ ELinkedList, pCollectionElement, EStruct);
     } else if(dwList & EVector) {
         bResult = VectorAddElement(dwList ^ EVector, pCollectionElement);
     }
@@ -47,7 +47,7 @@ BOOL AddIntElement(DWORD dwList, int nElement) {
     *(int*)pElement = nElement;
     BOOL bResult = FALSE;
     if(dwList & ELinkedList) {
-        bResult = ListAddElement(dwList ^ ELinkedList, pElement, Int);
+        bResult = ListAddElement(dwList ^ ELinkedList, pElement, EInt);
     } else if(dwList & EVector) {
         bResult = VectorAddElement(dwList ^ EVector, pElement);
     }
@@ -62,7 +62,7 @@ BOOL AddLongElement(DWORD dwList, long nElement) {
     *(long*)pElement = nElement;
     BOOL bResult = FALSE;
     if(dwList ^ ELinkedList) {
-        bResult = ListAddElement(dwList ^ ELinkedList, pElement, Int);
+        bResult = ListAddElement(dwList ^ ELinkedList, pElement, EInt);
     } else if(dwList ^ EVector) {
         bResult = VectorAddElement(dwList ^ EVector, pElement);
     }
@@ -77,7 +77,7 @@ BOOL AddFloatElement(DWORD dwList, float nElement) {
     *(float*)pElement = nElement;
     BOOL bResult = FALSE;
     if(dwList ^ ELinkedList) {
-        bResult = ListAddElement(dwList ^ ELinkedList, pElement, Float);
+        bResult = ListAddElement(dwList ^ ELinkedList, pElement, EFloat);
     } else if(dwList ^ EVector) {
         bResult = VectorAddElement(dwList ^ EVector, pElement);
     }
@@ -92,7 +92,7 @@ BOOL AddDoubleElement(DWORD dwList, double nElement) {
     *(double*)pElement = nElement;
     BOOL bResult = FALSE;
     if(dwList ^ ELinkedList) {
-        bResult = ListAddElement(dwList ^ ELinkedList, pElement, Double);
+        bResult = ListAddElement(dwList ^ ELinkedList, pElement, EDouble);
     } else if(dwList ^ EVector) {
         bResult = VectorAddElement(dwList ^ EVector, pElement);
     }
@@ -109,7 +109,7 @@ BOOL AddStringElement(DWORD dwList, wchar_t* szElement) {
     void* pElement = (void*)szNewElem;
     BOOL bResult = FALSE;
     if(dwList ^ ELinkedList) {
-        bResult = ListAddElement(dwList ^ ELinkedList, pElement, String);
+        bResult = ListAddElement(dwList ^ ELinkedList, pElement, EString);
     } else if(dwList ^ EVector) {
         bResult = VectorAddElement(dwList ^ EVector, pElement);
     }
@@ -121,7 +121,7 @@ BOOL AddStringElement(DWORD dwList, wchar_t* szElement) {
 
 void* GetAt(DWORD dwList, size_t nPosition) {
     if(dwList & ELinkedList) {
-        EType type = Int;
+        EType type = EInt;
         return ListGetAt(dwList ^ ELinkedList, nPosition, &type);
     } else if(dwList & EVector) {
         return VectorGetAt(dwList ^ EVector, nPosition);
@@ -130,18 +130,18 @@ void* GetAt(DWORD dwList, size_t nPosition) {
 }
 
 int GetIntAt(DWORD dwList, size_t nPosition) {
-    EType eType = Int;
+    EType eType = EInt;
     if(dwList & ELinkedList) {
         void* pValue = ListGetAt(dwList ^ ELinkedList, nPosition, &eType);
         if(pValue == NULL) {
             return 0;
         }
-        if(eType == Int) {
+        if(eType == EInt) {
             return *(int*)pValue;
         }
     } else if(dwList & EVector) {
         int nValue = 0;
-        if(VectorGetType(dwList ^ EVector, 0) == Int) {
+        if(VectorGetType(dwList ^ EVector, 0) == EInt) {
             void *pElem = VectorGetAt(dwList ^ EVector, nPosition);
             nValue = *(int *) (pElem);
         }
@@ -151,17 +151,17 @@ int GetIntAt(DWORD dwList, size_t nPosition) {
 }
 
 wchar_t* GetStringAt(DWORD dwList, size_t nPosition) {
-    EType eType = String;
+    EType eType = EString;
     if(dwList & ELinkedList) {
         void* pValue = ListGetAt(dwList ^ ELinkedList, nPosition, &eType);
         if(pValue == NULL) {
             return L"";
         }
-        if(eType == String) {
+        if(eType == EString) {
             return (wchar_t*)pValue;
         }
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == String) {
+        if(VectorGetType(dwList ^ EVector, 0) == EString) {
             void *pElem = VectorGetAt(dwList ^ EVector, nPosition);
             return (wchar_t *) pElem;
         }
@@ -170,17 +170,17 @@ wchar_t* GetStringAt(DWORD dwList, size_t nPosition) {
 }
 
 long GetLongAt(DWORD dwList, size_t nPosition) {
-    EType eType = Long;
+    EType eType = ELong;
     if(dwList & ELinkedList) {
         void* pValue = ListGetAt(dwList ^ ELinkedList, nPosition, &eType);
         if(pValue == NULL) {
             return 0;
         }
-        if(eType == Long) {
+        if(eType == ELong) {
             return *(long*)pValue;
         }
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Long) {
+        if(VectorGetType(dwList ^ EVector, 0) == ELong) {
             long nValue = *(long*)VectorGetAt(dwList ^ EVector, nPosition);
             return nValue;
         }
@@ -189,17 +189,17 @@ long GetLongAt(DWORD dwList, size_t nPosition) {
 }
 
 float GetFloatAt(DWORD dwList, size_t nPosition) {
-    EType eType = Float;
+    EType eType = EFloat;
     if(dwList & ELinkedList) {
         void* pValue = ListGetAt(dwList ^ ELinkedList, nPosition, &eType);
         if(pValue == NULL) {
             return 0.f;
         }
-        if(eType == Float) {
+        if(eType == EFloat) {
             return *(float*)pValue;
         }
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Float) {
+        if(VectorGetType(dwList ^ EVector, 0) == EFloat) {
             float nValue = *(float*) VectorGetAt(dwList ^ EVector, nPosition);
             return nValue;
         }
@@ -208,17 +208,17 @@ float GetFloatAt(DWORD dwList, size_t nPosition) {
 }
 
 double GetDoubleAt(DWORD dwList, size_t nPosition) {
-    EType eType = Float;
+    EType eType = EFloat;
     if(dwList & ELinkedList) {
         void* pValue = ListGetAt(dwList ^ ELinkedList, nPosition, &eType);
         if(pValue == NULL) {
             return 0.0;
         }
-        if(eType == Float) {
+        if(eType == EFloat) {
             return *(float*)pValue;
         }
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Double) {
+        if(VectorGetType(dwList ^ EVector, 0) == EDouble) {
             double nValue = *(double*)VectorGetAt(dwList ^ EVector, nPosition);
             return nValue;
         }
@@ -267,9 +267,9 @@ BOOL SetInt(DWORD dwList, size_t nPosition, int nValue) {
     *(int*)pValue = nValue;
     BOOL bIsSet = FALSE;
     if(dwList & ELinkedList) {
-        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, Int);
+        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, EInt);
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Int) {
+        if(VectorGetType(dwList ^ EVector, 0) == EInt) {
             bIsSet = VectorSet(dwList ^ EVector, nPosition, pValue);
         }
     }
@@ -284,9 +284,9 @@ BOOL SetLong(DWORD dwList, size_t nPosition, long nValue) {
     *(long*)pValue = nValue;
     BOOL bIsSet = FALSE;
     if(dwList & ELinkedList) {
-        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, Long);
+        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, ELong);
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Long) {
+        if(VectorGetType(dwList ^ EVector, 0) == ELong) {
             bIsSet = VectorSet(dwList ^ EVector, nPosition, pValue);
         }
     }
@@ -300,9 +300,9 @@ BOOL SetDouble(DWORD dwList, size_t nPosition, double nValue) {
     *(double*)pValue = nValue;
     BOOL bIsSet = FALSE;
     if(dwList & ELinkedList) {
-        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, Double);
+        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, EDouble);
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Double) {
+        if(VectorGetType(dwList ^ EVector, 0) == EDouble) {
             bIsSet = VectorSet(dwList ^ EVector, nPosition, pValue);
         }
     }
@@ -317,9 +317,9 @@ BOOL SetFloat(DWORD dwList, size_t nPosition, float nValue) {
     *(float*)pValue = nValue;
     BOOL bIsSet = FALSE;
     if(dwList & ELinkedList) {
-        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, Float);
+        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, EFloat);
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Float) {
+        if(VectorGetType(dwList ^ EVector, 0) == EFloat) {
             bIsSet = VectorSet(dwList ^ EVector, nPosition, pValue);
         }
     }
@@ -337,9 +337,9 @@ BOOL SetString(DWORD dwList, size_t nPosition, wchar_t* szValue) {
 #endif
     BOOL bIsSet = FALSE;
     if(dwList & ELinkedList) {
-        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, String);
+        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, EString);
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == String) {
+        if(VectorGetType(dwList ^ EVector, 0) == EString) {
             bIsSet = VectorSet(dwList ^ EVector, nPosition, pValue);
         }
     }
@@ -363,9 +363,9 @@ BOOL InsertIntAt(DWORD dwList, size_t nPosition, int nValue) {
     *(int*)pValue = nValue;
     BOOL bResult = FALSE;
     if(dwList & ELinkedList) {
-        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, Int);
+        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, EInt);
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Int) {
+        if(VectorGetType(dwList ^ EVector, 0) == EInt) {
             bResult = VectorInsertAt(dwList ^ EVector, nPosition, pValue);
         }
     }
@@ -380,9 +380,9 @@ BOOL InsertLongAt(DWORD dwList, size_t nPosition, long nValue) {
     *(long*)pValue = nValue;
     BOOL bResult = FALSE;
     if(dwList & ELinkedList) {
-        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, Long);
+        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, ELong);
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Long) {
+        if(VectorGetType(dwList ^ EVector, 0) == ELong) {
             bResult = VectorInsertAt(dwList ^ EVector, nPosition, pValue);
         }
     }
@@ -397,9 +397,9 @@ BOOL InsertDoubleAt(DWORD dwList, size_t nPosition, double nValue) {
     *(double*)pValue = nValue;
     BOOL bResult = FALSE;
     if(dwList & ELinkedList) {
-        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, Double);
+        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, EDouble);
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Double) {
+        if(VectorGetType(dwList ^ EVector, 0) == EDouble) {
             bResult = VectorInsertAt(dwList ^ EVector, nPosition, pValue);
         }
     }
@@ -414,9 +414,9 @@ BOOL InsertFloatAt(DWORD dwList, size_t nPosition, float nValue) {
     *(float*)pValue = nValue;
     BOOL bResult = FALSE;
     if(dwList & ELinkedList) {
-        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, Float);
+        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, EFloat);
     } else if(dwList & EVector) {
-        if(VectorGetType(dwList ^ EVector, 0) == Float) {
+        if(VectorGetType(dwList ^ EVector, 0) == EFloat) {
             bResult = VectorInsertAt(dwList ^ EVector, nPosition, pValue);
         }
     }
@@ -434,9 +434,9 @@ BOOL InsertStringAt(DWORD dwList, size_t nPosition, wchar_t* szValue) {
 #endif
     BOOL bResult = FALSE;
     if(dwList & ELinkedList) {
-        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, String);
+        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, EString);
     } else {
-        if(VectorGetType(dwList ^ EVector, 0) == String) {
+        if(VectorGetType(dwList ^ EVector, 0) == EString) {
             bResult = VectorInsertAt(dwList ^ EVector, nPosition, pValue);
         }
     }
@@ -452,7 +452,7 @@ EType GetType(DWORD dwList, size_t nPosition) {
     } else if(dwList & EVector) {
         return VectorGetType(dwList ^ EVector, nPosition);
     }
-    return Unknown;
+    return EUnknown;
 }
 
 void FreeCollections() {

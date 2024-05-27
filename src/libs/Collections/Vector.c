@@ -1,4 +1,5 @@
-#include <mem.h>
+#include "memory.h"
+#include "string.h"
 #include "Vector.h"
 #include "stdlib.h"
 #include "CollectionUtils.h"
@@ -35,23 +36,23 @@ DWORD VectorCreate(EType eType, size_t nElementSize) {
     pVectorsTable[dwRetVector].eVectorType = eType;
     pVectorsTable[dwRetVector].nVectorSize = 0;
     switch (eType) {
-        case Int:
+        case EInt:
             pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * sizeof(int));
             pVectorsTable[dwRetVector].nElemSize = sizeof(int);
             break;
-        case Long:
+        case ELong:
             pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * sizeof(long));
             pVectorsTable[dwRetVector].nElemSize = sizeof(long);
             break;
-        case Float:
+        case EFloat:
             pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * sizeof(float));
             pVectorsTable[dwRetVector].nElemSize = sizeof(float);
             break;
-        case Double:
+        case EDouble:
             pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * sizeof(double));
             pVectorsTable[dwRetVector].nElemSize = sizeof(double );
             break;
-        case String:
+        case EString:
             pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * sizeof(wchar_t*));
             pVectorsTable[dwRetVector].nElemSize = sizeof(wchar_t*);
             break;
@@ -75,19 +76,20 @@ BOOL VectorAddElement(DWORD dwVector, void* pElement) {
         }
     }
     switch (vector->eVectorType) {
-        case Int:
+        case EInt:
             ((int*)vector->pElementsMemory)[vector->nVectorSize++] = *(int*)pElement;
             break;
-        case Long:
+        case ELong:
             ((long*)vector->pElementsMemory)[vector->nVectorSize++] = *(long*)pElement;
             break;
-        case Float:
+        case EFloat:
             ((float*)vector->pElementsMemory)[vector->nVectorSize++] = *(float*)pElement;
             break;
-        case Double:
+        case EDouble:
             ((double*)vector->pElementsMemory)[vector->nVectorSize++] = *(double*)pElement;
             break;
-        case String:
+        case EString:
+
             ((wchar_t**)vector->pElementsMemory)[vector->nVectorSize++] = malloc((wcslen(pElement) + 1) * sizeof(wchar_t));
             wcscpy_s(((wchar_t**)vector->pElementsMemory)[vector->nVectorSize++], (wcslen(pElement) + 1), pElement);
         default:
@@ -106,15 +108,15 @@ void* VectorGetAt(DWORD dwVector, size_t nPosition) {
         return FALSE;
     }
     switch (vector->eVectorType) {
-        case Int:
+        case EInt:
             return (void*)&((int*)vector->pElementsMemory)[nPosition];
-        case Long:
+        case ELong:
             return (void*)&((long*)vector->pElementsMemory)[nPosition];
-        case Float:
+        case EFloat:
             return (void*)&((float*)vector->pElementsMemory)[nPosition];
-        case Double:
+        case EDouble:
             return (void*)&((double*)vector->pElementsMemory)[nPosition];
-        case String:
+        case EString:
             return (void*)&((wchar_t**)vector->pElementsMemory)[nPosition];
         default:
             return ((void**)vector->pElementsMemory + nPosition * vector->nElemSize);
@@ -129,9 +131,11 @@ BOOL VectorRemoveAt(DWORD dwVector, size_t nPosition) {
     if(nPosition > vector->nVectorSize) {
         return FALSE;
     }
-    memmove(vector->pElementsMemory + nPosition * vector->nElemSize,
-            vector->pElementsMemory + (nPosition + 1) * vector->nElemSize,
-            (vector->nVectorSize - nPosition - 1) * vector->nElemSize);
+    // Windows don't want to deal with raw void*, pathetic
+    memmove_s((char*)vector->pElementsMemory + nPosition * vector->nElemSize,
+              vector->nCapacity * vector->nElemSize,
+              (char*)vector->pElementsMemory + (nPosition + 1) * vector->nElemSize,
+              (vector->nVectorSize - nPosition -1) * vector->nElemSize);
     vector->nVectorSize--;
     return TRUE;
 }
@@ -141,11 +145,11 @@ BOOL VectorDelete(DWORD dwVector) {
         return FALSE;
     }
     Vector* vector = &pVectorsTable[dwVector];
-    if(vector->eVectorType == String) {
+    if(vector->eVectorType == EString) {
         for(int i = 0; i < vector->nVectorSize; i++) {
             free(((wchar_t**)vector->pElementsMemory)[i]);
         }
-    } else if(vector->eVectorType == Struct) {
+    } else if(vector->eVectorType == EStruct) {
         for(int i = 0; i < vector->nVectorSize; i++) {
             free(((wchar_t**)vector->pElementsMemory)[i]);
         }
@@ -163,19 +167,19 @@ BOOL VectorSet(DWORD dwVector, size_t nPosition, void* pValue) {
     }
     Vector* vector = &pVectorsTable[dwVector];
     switch (vector->eVectorType) {
-        case Int:
+        case EInt:
             ((int*)vector->pElementsMemory)[nPosition] = *(int*)pValue;
             break;
-        case Long:
+        case ELong:
             ((long*)vector->pElementsMemory)[nPosition] = *(long*)pValue;
             break;
-        case Float:
+        case EFloat:
             ((float*)vector->pElementsMemory)[nPosition] = *(float*)pValue;
             break;
-        case Double:
+        case EDouble:
             ((double*)vector->pElementsMemory)[nPosition] = *(double*)pValue;
             break;
-        case String:
+        case EString:
             free(((wchar_t**)vector->pElementsMemory)[nPosition]);
             ((wchar_t**)vector->pElementsMemory)[nPosition] = malloc((wcslen(pValue) + 1) * sizeof(wchar_t));
             wcscpy_s(((wchar_t**)vector->pElementsMemory)[nPosition], (wcslen(pValue) + 1), pValue);
@@ -208,9 +212,10 @@ BOOL VectorInsertAt(DWORD dwVector, size_t nPosition, void* pValue) {
             vector->pElementsMemory = tempMem;
         }
     }
-    memmove(vector->pElementsMemory + (nPosition + 1) * vector->nElemSize,
-            vector->pElementsMemory + nPosition * vector->nElemSize,
-            (vector->nVectorSize - nPosition) * vector->nElemSize);
+    memmove_s((char*)vector->pElementsMemory + (nPosition + 1) * vector->nElemSize,
+              vector->nCapacity * vector->nElemSize,
+              (char*)vector->pElementsMemory + nPosition * vector->nElemSize,
+              (vector->nVectorSize - nPosition) * vector->nElemSize);
     vector->nVectorSize++;
     return VectorSet(dwVector, nPosition, pValue);
 }

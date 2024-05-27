@@ -23,6 +23,9 @@ DWORD ListCreate() {
         pListsTable = malloc(sizeof(ListNode) * nCountNewItems);
         pListsSizes = malloc(sizeof(size_t) * nCountNewItems);
         for(DWORD i = 0; i < nCountNewItems; i++) {
+            pListsTable[i].pNext = NULL;
+            pListsTable[i].pValue = NULL;
+            pListsTable[i].valueType = EUnknown;
             pListsSizes[i] = 0;
         }
         dwCurrentTableSize += nCountNewItems;
@@ -208,10 +211,10 @@ BOOL ListInsertAt(DWORD dwList, size_t nPosition, void* pValue, EType eType) {
 
 EType ListGetType(DWORD dwList, size_t nPosition) {
     if(dwList > dwCurrentSize) {
-        return Unknown;
+        return EUnknown;
     }
     if(nPosition > pListsSizes[dwList]) {
-        return Unknown;
+        return EUnknown;
     }
     ListNode* pCurrent = &pListsTable[dwList];
     int nIter = 0;

@@ -1,19 +1,21 @@
 #pragma once
 
+#ifndef WIN32
 typedef unsigned long long DWORD;
 typedef unsigned char BOOL;
+#endif
 
 #define TRUE 1
 #define FALSE 0
 
 typedef enum EType {
-    String,
-    Int,
-    Long,
-    Float,
-    Double,
-    Struct,
-    Unknown
+    EString,
+    EInt,
+    ELong,
+    EFloat,
+    EDouble,
+    EStruct,
+    EUnknown
 } EType;
 
 typedef enum ECollection {

@@ -1,6 +1,9 @@
 #pragma once
 #include "types.h"
 #include "stddef.h"
+#ifdef WIN32
+#include "windows.h"
+#endif
 
 DWORD ListCreate();
 BOOL ListAddElement(DWORD dwList, void* pElement, EType eType);
