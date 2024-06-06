@@ -3,6 +3,7 @@
 #include "stdlib.h"
 #ifdef WIN32
 #include "windows.h"
+#include "conio.h"
 #endif
 #include "Draw.h"
 
@@ -22,33 +23,25 @@ typedef struct TetrisFigure {
     TetrisFigureTypes figureType;
 } TetrisFigure;
 
+void Destruct(void* element) {
+
+
+}
+
+void (*destroy)(void*);
+
 int main() {
     //DrawGameWindow();
-    DWORD dwSize = 130 * sizeof(TCHAR);
-    PTCHAR szOutput = HeapAlloc(GetProcessHeap(), 0, dwSize);
-    szOutput[0] = '\0';
-    strcat_s(szOutput, dwSize, "+");
-    strcat_s(szOutput, dwSize, "-");
-    strcat_s(szOutput, dwSize, "-");
-    strcat_s(szOutput, dwSize, "+");
-    printf_s("%s", szOutput);
-    HeapFree(GetProcessHeap(), 0 , szOutput);
+    DWORD dwLines = CreateVector(EString, sizeof(wchar_t));
+    AddStringElement(dwLines, L"Hello world");
+    wchar_t* szLine = GetStringAt(dwLines, 0);
 
-    getchar();
-
-    DWORD dwList = CreateList();
-    for(int i = 0; i < 10; i++) {
-        TetrisFigure figure;
-        figure.x = 0;
-        figure.y = i;
-        figure.figureType = Stick;
-        AddElement(dwList, &figure, sizeof(TetrisFigure));
-    }
-    for(int i = 0; i < 10; i++) {
-        TetrisFigure* pElement = (TetrisFigure*)GetAt(dwList, i);
-        printf_s("Figure(%d, %d)\n", pElement->x, pElement->y);
-    }
-    printf_s("Hello world");
+    while (TRUE)
+    {
+        int key = _getch();
+        SetUserKey(key);
+        Sleep(1000 / 60);
+    };
     FreeCollections();
     return 0;
 }

@@ -10,9 +10,10 @@ static struct UnusedNode* pUnusedLists;
 static struct UnusedNode* pUnusedVectors;
 
 BOOL GetUnused(UnusedNode* pUnusedCollections, DWORD* pDwUnused) {
-    if(pUnusedCollections == NULL) {
+    if (pUnusedCollections == NULL) {
         return FALSE;
-    } else {
+    }
+    else {
         *pDwUnused = pUnusedCollections->dwUnused;
         UnusedNode* pTempMem = pUnusedCollections;
         pUnusedCollections = pUnusedCollections->pNext;
@@ -22,10 +23,11 @@ BOOL GetUnused(UnusedNode* pUnusedCollections, DWORD* pDwUnused) {
 }
 
 void PutUnused(UnusedNode* pUnusedCollections, DWORD dwUnused) {
-    if(pUnusedCollections == NULL) {
+    if (pUnusedCollections == NULL) {
         pUnusedCollections = malloc(sizeof(UnusedNode));
         pUnusedCollections->dwUnused = dwUnused;
-    } else {
+    }
+    else {
         UnusedNode* pCurrent = pUnusedCollections;
         while (pCurrent->pNext != NULL) {
             pCurrent = pCurrent->pNext;

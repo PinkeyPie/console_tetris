@@ -14,4 +14,5 @@ size_t ListSize(DWORD dwList);
 BOOL ListSet(DWORD dwList, size_t nPosition, void* pValue, EType eType);
 BOOL ListInsertAt(DWORD dwList, size_t nPosition, void* pValue, EType eType);
 EType ListGetType(DWORD dwList, size_t nPosition);
+BOOL ListSetDestroyFunc(DWORD dwList, Destructor);
 void FreeList();

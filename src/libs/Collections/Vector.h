@@ -14,4 +14,5 @@ BOOL VectorSet(DWORD dwVector, size_t nPosition, void* pValue);
 size_t VectorSize(DWORD dwVector);
 BOOL VectorInsertAt(DWORD dwVector, size_t nPosition, void* pValue);
 EType VectorGetType(DWORD dwVector, size_t nPosition);
+BOOL VectorSetDestroyFunc(DWORD dwList, Destructor destructor);
 void FreeVectors();

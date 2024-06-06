@@ -6,6 +6,8 @@
 #endif
 #include "CollectionGlobal.h"
 
+#define UNINITIALIZED_COLLECTION 0
+
 COLLECTION_EXPORT DWORD _cdecl CreateList();
 COLLECTION_EXPORT DWORD CreateVector(EType eVectorType, size_t nElemSize);
 COLLECTION_EXPORT BOOL AddElement(DWORD dwList, void* pElement, size_t nElemSize);
@@ -14,7 +16,7 @@ COLLECTION_EXPORT BOOL AddLongElement(DWORD dwList, long nElement);
 COLLECTION_EXPORT BOOL AddFloatElement(DWORD dwList, float nElement);
 COLLECTION_EXPORT BOOL AddDoubleElement(DWORD dwList, double nElement);
 COLLECTION_EXPORT BOOL AddStringElement(DWORD dwList, wchar_t* szElement);
-COLLECTION_EXPORT void*  GetAt(DWORD dwList, size_t nPosition);
+COLLECTION_EXPORT void* GetAt(DWORD dwList, size_t nPosition);
 COLLECTION_EXPORT int GetIntAt(DWORD dwList, size_t nPosition);
 COLLECTION_EXPORT wchar_t* GetStringAt(DWORD dwList, size_t nPosition);
 COLLECTION_EXPORT long GetLongAt(DWORD dwList, size_t nPosition);
@@ -36,4 +38,5 @@ COLLECTION_EXPORT BOOL InsertDoubleAt(DWORD dwList, size_t nPosition, double nVa
 COLLECTION_EXPORT BOOL InsertFloatAt(DWORD dwList, size_t nPosition, float nValue);
 COLLECTION_EXPORT BOOL InsertStringAt(DWORD dwList, size_t nPosition, wchar_t* szValue);
 COLLECTION_EXPORT EType GetType(DWORD dwList, size_t nPosition);
+COLLECTION_EXPORT BOOL SetDestroyFunction(DWORD dwList, Destructor);
 COLLECTION_EXPORT void _cdecl FreeCollections();
