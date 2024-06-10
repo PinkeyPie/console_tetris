@@ -1,5 +1,6 @@
 #pragma once
 #include "wchar.h"
+#include "windows.h"
 
 #ifndef WIN32
 typedef unsigned long long DWORD;
@@ -44,7 +45,6 @@ typedef struct _KEY_EVENT_RECORD {
 #define NLS_IME_CONVERSION    0x00800000 // DBCS for JPN: IME conversion.
 #define ALTNUMPAD_BIT         0x04000000 // AltNumpad OEM char (copied from ntuser\inc\kbd.h) ;internal_NT
 #define NLS_IME_DISABLE       0x20000000 // DBCS for JPN: IME enable/disable.
-
 #endif
 
 #define TRUE 1
@@ -61,9 +61,10 @@ typedef enum EType {
 } EType;
 
 typedef enum ECollection {
-    ELinkedList = 1 << 30,
-    EVector = 2 << 30,
-    EMap = 3 << 30
+    ENotInitCollection,
+    ELinkedList,
+    EVector,
+    EMap
 } ECollection;
 
 typedef enum EErrorCode {

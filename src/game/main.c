@@ -6,42 +6,28 @@
 #include "conio.h"
 #endif
 #include "Draw.h"
-
-typedef enum TetrisFigureTypes {
-    Stick = 1,
-    Rect = 2,
-    TFigure = 3,
-    RightZ = 4,
-    LeftZ = 5,
-    LeftL = 6,
-    RightL = 7
-} TetrisFigureTypes;
-
-typedef struct TetrisFigure {
-    int x;
-    int y;
-    TetrisFigureTypes figureType;
-} TetrisFigure;
-
-void Destruct(void* element) {
-
-
-}
-
-void (*destroy)(void*);
+#include "StringLib.h"
+#include "Stream.h"
 
 int main() {
-    //DrawGameWindow();
-    DWORD dwLines = CreateVector(EString, sizeof(wchar_t));
-    AddStringElement(dwLines, L"Hello world");
-    wchar_t* szLine = GetStringAt(dwLines, 0);
 
-    while (TRUE)
-    {
-        int key = _getch();
-        SetUserKey(key);
-        Sleep(1000 / 60);
-    };
+    String string = FromCString("Hello world");
+    String someLow = FromCString("     hello world     ");
+    Trim(someLow);
+    Concat(string, someLow);
+    String copy = StrCopy(string);
+    if(StrCompareCaseless(string, someLow)) {
+        Truncate(string, 10);
+    }
+
+    (string, )int strlen = (int)sizeof("hello world")-1;
+    int maxlen = (-32);
+    unsigned char* data = (unsigned char*)("" "hello world" "");
+
+    //DrawGameWindow();
+//    DWORD dwLines = CreateVector(EString, sizeof(wchar_t));
+//    AddStringElement(dwLines, L"Hello world");
+//    wchar_t* szLine = GetStringAt(dwLines, 0);
     FreeCollections();
     return 0;
 }

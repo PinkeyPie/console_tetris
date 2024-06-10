@@ -1,10 +1,11 @@
 #pragma once
+#include "StringGlobal.h"
 
-extern char* (gets)(char* buf);
-extern char* (strncpy)(char* dst, const char* src, size_t n);
-extern char* (strncat)(char* dst, const char* src, size_t n);
-extern char* (strtok)(char* s1, const char* s2);
-extern char* (strdup)(const char* s);
+STRING_EXPORT char* (gets)(char* buf);
+STRING_EXPORT char* (strncpy)(char* dst, const char* src, size_t n);
+STRING_EXPORT char* (strncat)(char* dst, const char* src, size_t n);
+STRING_EXPORT char* (strtok)(char* s1, const char* s2);
+STRING_EXPORT char* (strdup)(const char* s);
 #undef strcpy
 #undef strcat
 #define strcpy(a,b) bsafe_strcpy(a,b)

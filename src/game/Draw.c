@@ -3,7 +3,7 @@
 #include "TetrisFigure.h"
 #ifdef WIN32
 #include "windows.h"
-#include "string.h"
+#include "StringLib.h"
 #include <process.h>
 #endif
 

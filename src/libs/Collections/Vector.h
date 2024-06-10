@@ -5,14 +5,13 @@
 #include "windows.h"
 #endif
 
-DWORD VectorCreate(EType eType, size_t nElementSize);
-BOOL VectorAddElement(DWORD dwVector, void* pElement);
-void* VectorGetAt(DWORD dwVector, size_t nPosition);
-BOOL VectorRemoveAt(DWORD dwVector, size_t nPosition);
-BOOL VectorDelete(DWORD dwVector);
-BOOL VectorSet(DWORD dwVector, size_t nPosition, void* pValue);
-size_t VectorSize(DWORD dwVector);
-BOOL VectorInsertAt(DWORD dwVector, size_t nPosition, void* pValue);
-EType VectorGetType(DWORD dwVector, size_t nPosition);
-BOOL VectorSetDestroyFunc(DWORD dwList, Destructor destructor);
-void FreeVectors();
+HANDLE VectorCreate(EType eType, size_t nElementSize);
+BOOL VectorAddElement(HANDLE hVector, void* pElement);
+void* VectorGetAt(HANDLE hVector, size_t nPosition);
+BOOL VectorRemoveAt(HANDLE dwVector, size_t nPosition);
+BOOL VectorDelete(HANDLE hVector);
+BOOL VectorSet(HANDLE hVector, size_t nPosition, void* pValue);
+size_t VectorSize(HANDLE hVector);
+BOOL VectorInsertAt(HANDLE hVector, size_t nPosition, void* pValue);
+EType VectorGetType(HANDLE hVector, size_t nPosition);
+BOOL VectorSetDestroyFunc(HANDLE hVector, Destructor destructor);

@@ -6,95 +6,58 @@
 #include "Collection.h"
 
 typedef struct Vector {
+    ECollection collectionType;
     void* pElementsMemory;
     EType eVectorType;
     size_t nElemSize;
     size_t nVectorSize;
     size_t nCapacity;
+    Destructor pDestructor;
 } Vector;
 
-static Vector* pVectorsTable = NULL;
-static DWORD dwCurrentTableSize = 0;
-static DWORD dwCurrentVectorsSize = 0;
-static const DWORD dwNewItemsCount = 10;
 static size_t nDefaultCapacity = 10;
-static BOOL bClear = FALSE;
-static Destructor* pDestructors = NULL;
 
-DWORD VectorCreate(EType eType, size_t nElementSize) {
-    DWORD dwRetVector = 0;
-    if (pVectorsTable == NULL) {
-        pVectorsTable = malloc(sizeof(Vector) * dwNewItemsCount);
-        if (pVectorsTable == NULL) {
-            return UNINITIALIZED_COLLECTION;
-        }
-        dwCurrentTableSize += dwNewItemsCount;
-    }
-    if (pDestructors == NULL) {
-        pDestructors = malloc(sizeof(Destructor) * dwNewItemsCount);
-        for (DWORD i = 0; i < dwNewItemsCount; i++) {
-            pDestructors[i] = NULL;
-        }
-    }
-    else if (dwCurrentVectorsSize >= dwCurrentTableSize) {
-        Vector* pTempMem = realloc(pVectorsTable, dwCurrentTableSize + dwNewItemsCount);
-        if (pTempMem) {
-            pVectorsTable = pTempMem;
-        }
-        else {
-            return UNINITIALIZED_COLLECTION;
-        }
-        Destructor* pTempDestructors = realloc(pDestructors, dwCurrentTableSize + dwNewItemsCount);
-        if (pTempDestructors) {
-            pDestructors = pTempDestructors;
-            for (DWORD i = dwCurrentTableSize; i < dwCurrentTableSize + dwNewItemsCount; i++) {
-                pDestructors[i] = NULL;
-            }
-        }
-        dwCurrentTableSize += dwNewItemsCount;
-    }
-    dwRetVector = dwCurrentVectorsSize++;
-    pVectorsTable[dwRetVector].nCapacity = nDefaultCapacity;
-    pVectorsTable[dwRetVector].eVectorType = eType;
-    pVectorsTable[dwRetVector].nVectorSize = 0;
+HANDLE VectorCreate(EType eType, size_t nElementSize) {
+    Vector* newVector = malloc(sizeof(Vector*));
+    newVector->collectionType = EVector;
+    newVector->nCapacity = nDefaultCapacity;
+    newVector->eVectorType = eType;
+    newVector->nVectorSize = 0;
     switch (eType) {
     case EInt:
-        pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * sizeof(int));
-        pVectorsTable[dwRetVector].nElemSize = sizeof(int);
+        newVector->pElementsMemory = malloc(nDefaultCapacity * sizeof(int));
+        newVector->nElemSize = sizeof(int);
         break;
     case ELong:
-        pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * sizeof(long));
-        pVectorsTable[dwRetVector].nElemSize = sizeof(long);
+        newVector->pElementsMemory = malloc(nDefaultCapacity * sizeof(long));
+        newVector->nElemSize = sizeof(long);
         break;
     case EFloat:
-        pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * sizeof(float));
-        pVectorsTable[dwRetVector].nElemSize = sizeof(float);
+        newVector->pElementsMemory = malloc(nDefaultCapacity * sizeof(float));
+        newVector->nElemSize = sizeof(float);
         break;
     case EDouble:
-        pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * sizeof(double));
-        pVectorsTable[dwRetVector].nElemSize = sizeof(double);
+        newVector->pElementsMemory = malloc(nDefaultCapacity * sizeof(double));
+        newVector->nElemSize = sizeof(double);
         break;
     case EString:
-        pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * sizeof(wchar_t*));
-        if (pVectorsTable[dwRetVector].pElementsMemory != NULL) {
+        newVector->pElementsMemory = malloc(nDefaultCapacity * sizeof(wchar_t*));
+        if (newVector->pElementsMemory != NULL) {
             for (size_t i = 0; i < nDefaultCapacity; i++) {
-                ((wchar_t**)pVectorsTable[dwRetVector].pElementsMemory)[i] = NULL;
+                ((wchar_t**)newVector->pElementsMemory)[i] = NULL;
             }
-            pVectorsTable[dwRetVector].nElemSize = sizeof(wchar_t*);
+            newVector->nElemSize = sizeof(wchar_t*);
         }
         break;
     default:
-        pVectorsTable[dwRetVector].pElementsMemory = malloc(nDefaultCapacity * nElementSize);
-        pVectorsTable[dwRetVector].nElemSize = nElementSize;
+        newVector->pElementsMemory = malloc(nDefaultCapacity * nElementSize);
+        newVector->nElemSize = nElementSize;
     }
-    return dwRetVector;
+    return newVector;
 }
 
-BOOL VectorAddElement(DWORD dwVector, void* pElement) {
-    if (dwVector > dwCurrentVectorsSize) {
-        return FALSE;
-    }
-    Vector* vector = &pVectorsTable[dwVector];
+BOOL VectorAddElement(HANDLE hVector, void* pElement) {
+    Vector* vector = (Vector*)hVector;
     if (vector->nVectorSize + 1 == vector->nCapacity) {
         void* pTempMem = realloc(vector->pElementsMemory, (vector->nCapacity + nDefaultCapacity) * vector->nElemSize);
         if (pTempMem) {
@@ -136,11 +99,8 @@ BOOL VectorAddElement(DWORD dwVector, void* pElement) {
     return TRUE;
 }
 
-void* VectorGetAt(DWORD dwVector, size_t nPosition) {
-    if (dwVector > dwCurrentVectorsSize) {
-        return FALSE;
-    }
-    Vector* vector = &pVectorsTable[dwVector];
+void* VectorGetAt(HANDLE hVector, size_t nPosition) {
+    Vector* vector = (Vector*)hVector;
     if (nPosition > vector->nVectorSize) {
         return FALSE;
     }
@@ -160,11 +120,8 @@ void* VectorGetAt(DWORD dwVector, size_t nPosition) {
     }
 }
 
-BOOL VectorRemoveAt(DWORD dwVector, size_t nPosition) {
-    if (dwVector > dwCurrentVectorsSize) {
-        return FALSE;
-    }
-    Vector* vector = &pVectorsTable[dwVector];
+BOOL VectorRemoveAt(HANDLE hVector, size_t nPosition) {
+    Vector* vector = (Vector*)hVector;
     if (nPosition > vector->nVectorSize) {
         return FALSE;
     }
@@ -176,8 +133,8 @@ BOOL VectorRemoveAt(DWORD dwVector, size_t nPosition) {
     }
     if (vector->eVectorType == EStruct) {
         void* pElem = (void*)((char*)vector->pElementsMemory + nPosition + vector->nElemSize);
-        if (pDestructors[dwVector] != NULL) {
-            pDestructors[dwVector](pElem);
+        if(vector->pDestructor != NULL) {
+            vector->pDestructor(pElem);
         }
     }
     // Windows don't want to deal with raw void*, pathetic
@@ -189,11 +146,8 @@ BOOL VectorRemoveAt(DWORD dwVector, size_t nPosition) {
     return TRUE;
 }
 
-BOOL VectorDelete(DWORD dwVector) {
-    if (dwVector > dwCurrentVectorsSize) {
-        return FALSE;
-    }
-    Vector* vector = &pVectorsTable[dwVector];
+BOOL VectorDelete(HANDLE hVector) {
+    Vector* vector = (Vector*)hVector;
     if (vector->eVectorType == EString) {
         if (vector->pElementsMemory != NULL) {
             for (int i = 0; i < vector->nVectorSize; i++) {
@@ -206,24 +160,19 @@ BOOL VectorDelete(DWORD dwVector) {
     }
     else if (vector->eVectorType == EStruct) {
         for (int i = 0; i < vector->nVectorSize; i++) {
-            void* pELement = (void*)((char*)vector->pElementsMemory + i * vector->nElemSize);
-            if (pDestructors[dwVector] != NULL) {
-                pDestructors[dwVector](pELement);
+            void* pElement = (void*)((char*)vector->pElementsMemory + i * vector->nElemSize);
+            if(vector->pDestructor != NULL) {
+                vector->pDestructor(pElement);
             }
         }
     }
     free(vector->pElementsMemory);
-    if (!bClear) {
-        PutUnusedVector(dwVector);
-    }
+    free(vector);
     return TRUE;
 }
 
-BOOL VectorSet(DWORD dwVector, size_t nPosition, void* pValue) {
-    if (dwVector > dwCurrentVectorsSize) {
-        return FALSE;
-    }
-    Vector* vector = &pVectorsTable[dwVector];
+BOOL VectorSet(HANDLE hVector, size_t nPosition, void* pValue) {
+    Vector* vector = (Vector*)hVector;
     switch (vector->eVectorType) {
     case EInt:
         ((int*)vector->pElementsMemory)[nPosition] = *(int*)pValue;
@@ -248,8 +197,8 @@ BOOL VectorSet(DWORD dwVector, size_t nPosition, void* pValue) {
         }
     default:
         void* pElement = (void*)((char*)vector->pElementsMemory + nPosition * vector->nElemSize);
-        if(pDestructors[dwVector] != NULL) {
-            pDestructors[dwVector](pElement);
+        if(vector->pDestructor != NULL) {
+            vector->pDestructor(pElement);
         }
         memset((char*)vector->pElementsMemory + nPosition * vector->nElemSize, 0, vector->nElemSize);
         memcpy_s((char*)vector->pElementsMemory + nPosition * vector->nElemSize, vector->nElemSize, pValue, vector->nElemSize);
@@ -257,18 +206,13 @@ BOOL VectorSet(DWORD dwVector, size_t nPosition, void* pValue) {
     return TRUE;
 }
 
-size_t VectorSize(DWORD dwVector) {
-    if (dwVector > dwCurrentVectorsSize) {
-        return FALSE;
-    }
-    return pVectorsTable[dwVector].nVectorSize;
+size_t VectorSize(HANDLE hVector) {
+    Vector* vector = (Vector*)hVector;
+    return vector->nVectorSize;
 }
 
-BOOL VectorInsertAt(DWORD dwVector, size_t nPosition, void* pValue) {
-    if (dwVector > dwCurrentVectorsSize) {
-        return FALSE;
-    }
-    Vector* vector = &pVectorsTable[dwVector];
+BOOL VectorInsertAt(HANDLE hVector, size_t nPosition, void* pValue) {
+    Vector* vector = (Vector*)hVector;
     if (nPosition >= vector->nVectorSize) {
         return FALSE;
     }
@@ -283,29 +227,18 @@ BOOL VectorInsertAt(DWORD dwVector, size_t nPosition, void* pValue) {
         (char*)vector->pElementsMemory + nPosition * vector->nElemSize,
         (vector->nVectorSize - nPosition) * vector->nElemSize);
     vector->nVectorSize++;
-    return VectorSet(dwVector, nPosition, pValue);
+    return VectorSet(hVector, nPosition, pValue);
 }
 
-EType VectorGetType(DWORD dwVector, size_t nPosition) {
-    if (dwVector > dwCurrentVectorsSize) {
-        return FALSE;
-    }
-    Vector vector = pVectorsTable[dwVector];
-    return vector.eVectorType;
+EType VectorGetType(HANDLE hVector, size_t nPosition) {
+    Vector* vector = (Vector*)hVector;
+    return vector->eVectorType;
 }
 
-BOOL VectorSetDestroyFunc(DWORD dwList, Destructor destructor) {
-    if (dwList > dwCurrentVectorsSize) {
-        return FALSE;
+BOOL VectorSetDestroyFunc(HANDLE hVector, Destructor destructor) {
+    if(hVector != NULL) {
+        Vector* vector = (Vector*)hVector;
+        vector->pDestructor = destructor;
     }
-    pDestructors[dwList] = destructor;
     return TRUE;
-}
-
-void FreeVectors() {
-    bClear = TRUE;
-    for (DWORD i = 0; i < dwCurrentVectorsSize; i++) {
-        VectorDelete(i);
-    }
-    free(pVectorsTable);
 }
