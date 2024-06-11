@@ -199,7 +199,7 @@ Stream StreamOpen(ReadFuncPtr readPtr, void* parm) {
 
 /*  int StreamBuffLength(struct Stream* stream, int size)
  *
- *  Set the length of the buffer used by the bStream.  If size is zero, the
+ *  SetAt the length of the buffer used by the bStream.  If size is zero, the
  *  length is not set.  This function returns with the previous length.
  */
 int StreamBuffLength(Stream stream, int size) {
@@ -267,7 +267,7 @@ int StreamReadLineAppend(String reader, Stream stream, char terminator) {
     x.Data = (unsigned char*)bytes;
 
     /* First check if the current buffer holds the terminator */
-    bytes[l] = terminator; /* Set sentinel */
+    bytes[l] = terminator; /* SetAt sentinel */
     for (i = 0; bytes[i] != terminator; i++);
     if (i < l) {
         x.StrLen = i + 1;
@@ -302,7 +302,7 @@ int StreamReadLineAppend(String reader, Stream stream, char terminator) {
             /* If nothing was read return with an error message */
             return STR_ERR & -(reader->StrLen == rlo);
         }
-        bytes[l] = terminator; /* Set sentinel */
+        bytes[l] = terminator; /* SetAt sentinel */
         for (i = 0; bytes[i] != terminator; i++);
         if (i < l) {
             break;
@@ -404,7 +404,7 @@ int StreamReadLinesAppend(String reader, Stream stream, ConstString term) {
     x.Data = b;
 
     /* First check if the current buffer holds the terminator */
-    b[l] = term->Data[0]; /* Set sentinel */
+    b[l] = term->Data[0]; /* SetAt sentinel */
     for (i = 0; !testInCharField(&cf, b[i]); i++);
     if (i < l) {
         x.StrLen = i + 1;
@@ -440,7 +440,7 @@ int StreamReadLinesAppend(String reader, Stream stream, ConstString term) {
             return STR_ERR & -(reader->StrLen == rlo);
         }
 
-        b[l] = term->Data[0]; /* Set sentinel */
+        b[l] = term->Data[0]; /* SetAt sentinel */
         for (i = 0; !testInCharField(&cf, b[i]); i++);
         if (i < l) {
             break;

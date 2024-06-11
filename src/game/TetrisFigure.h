@@ -9,14 +9,14 @@
 
 typedef enum Positions
 {
-    EUp,
+    EUp = 0,
     ELeft,
     ERight,
     EDown
 } Positions;
 
 typedef enum EFigure {
-    LFigure,
+    LFigure = 1,
     TFigure,
     ZFigure,
     RectFigure,
@@ -27,15 +27,19 @@ typedef enum EFigure {
 
 typedef struct TetrisFigure
 {
-	COORD coords;
+    COORD coords;
     Positions position;
     EFigure figureType;
-    PCHAR szFigureText;
+    HANDLE hCoordsList;
 } TetrisFigure;
 
 HANDLE CreateTetrisFigure(EFigure figureType);
+HANDLE CreateRandomFigure();
 void SetTetrisFigureCoordinates(HANDLE hFigure, COORD coords);
-void ChangeOrientation(HANDLE hFigure, Positions position);
+void ChangeOrientation(HANDLE hFigure);
 HANDLE InitCollisionTraverse(HANDLE hFigure);
 DWORD GetCollisionBoundPixel(HANDLE hIterator, COORD* pPixelCoord);
 BOOL GetFigurePixels(DWORD dwPixelsList);
+HANDLE CopyFigure(HANDLE hFigure);
+void FreeFigure(HANDLE hFigure);
+COORD GetFigureSizes(HANDLE hFigure);

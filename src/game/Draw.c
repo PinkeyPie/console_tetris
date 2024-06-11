@@ -1,462 +1,513 @@
+#include <malloc.h>
 #include "Draw.h"
-#include "Collection.h"
+#include "pthread.h"
 #include "TetrisFigure.h"
-#ifdef WIN32
-#include "windows.h"
-#include "StringLib.h"
-#include <process.h>
-#endif
+#include "Collection.h"
+#include "GameLogic.h"
+#include "types.h"
+#include "stdio.h"
+#include "TetrisTypes.h"
+#include <assert.h>
+#include "TwoDimArray.h"
+#include "Colors.h"
 
-#ifdef WIN32
-#define esc 27
-#define FRAME_LONG 1000 / 60
-#define MAX(first, second) first > second ? first : second
-#define MIN(first, second) first < second ? first : second
-static HANDLE ghMutex;
-static short nCols = 0;
-static short nRows = 0;
-static short nLabelsVerticalMarginTop = 0;
-static short nLabelsVerticalMarginBottom = 0;
+#define WINDOW_LEFT 0
+#define WINDOW_TOP 0
+#define WIDTH 1600
+#define HEIGHT 900
+#define FIELD_WIDTH 10
+#define FIELD_HEIGHT 20
+#define WIDTH_MIN 50
+#define HEIGHT_MIN 50
+#define BORDER_WIDTH 5
+#define TITLE "Example window"
+#define ICON_TITLE "Example"
+#define PRG_CLASS "Example"
 
-static COORD menuLeftUp = { 0, 0 };
+// COLORS SECTION
+#define BACKGROUND_COLOR_R 10000
+#define BACKGROUND_COLOR_G 10000
+#define BACKGROUND_COLOR_B 10000
 
-void GotoXY(short, short);
-void ShowConsoleCursor();
-void HideCursor();
-void ClearConsole();
-void ClearConsoleLine(COORD coord, DWORD nSize);
-void WriteConsoleLine(COORD coord, PTCHAR szLine);
-void GetUserKey(int* nStateKey);
+#define SQUARE_WIDTH (30)
+#define SQUARE_HEIGHT (30)
+#define BORDER_SIZE (6)
 
-typedef struct Container {
-    COORD coords;
-    COORD sizes;
-} Container;
+#define BORDER_COLOR_R (0)
+#define BORDER_COLOR_G (65535)
+#define BORDER_COLOR_B (0)
 
-typedef struct MenuLabel {
-    DWORD nLabelSize;
-    PCHAR szLabel;
-    COORD labelCoord;
-    BOOL bSelected;
-    BOOL bNeedsClear;
-} MenuLabel;
+HANDLE hDrawQueue = NULL;
+pthread_mutex_t drawQueueMut;
+pthread_cond_t drawQueueCond;
 
-void DestroyMenuLabel(void* pLabelMem) {
-    if (pLabelMem != NULL) {
-        MenuLabel* pMenuLabel = (MenuLabel*)pLabelMem;
-        HeapFree(GetProcessHeap(), 0, pMenuLabel->szLabel);
-        pMenuLabel->szLabel = NULL;
-    }
-}
+static Display *display;
+static Window window;
+static GC gc;
+static Bool gcInited;
+static XEvent report;
+static XColor background_color;
+static Colormap screen_colormap;
+static HANDLE GameField = NULL;
 
-static DWORD dwLabelsList = 0;
-static DWORD dwGraphicalConveor = 0;
-static DWORD dwNextFigures = 0;
+static void SetWindowManagerHints(
+        Display *display,
+        char *PClass,
+        char *argv[],
+        int argc,
+        Window window,
+        int x,
+        int y,
+        int win_wdt,
+        int win_hgt,
+        int win_wgt_min,
+        int win_hgt_min,
+        char *ptrTitle,
+        char *ptrITitle,
+        Pixmap pixmap
+) {
+    XSizeHints sizeHints;
+    XWMHints xwmHints;
+    XClassHint classHint;
+    XTextProperty windowName, iconName;
 
-static Container fieldContainer;
-static Container nextItemContainer;
-static Container scoresContainer;
-static Container timeContainer;
-
-static int nLastUserKey = -1;
-
-void GotoXY(short x, short y) {
-    HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    COORD position = { x, y };
-    SetConsoleCursorPosition(hStdOut, position);
-}
-
-void ShowConsoleCursor() {
-    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_CURSOR_INFO info;
-    info.bVisible = FALSE;
-    SetConsoleCursorInfo(hConsole, &info);
-}
-
-void HideCursor() {
-    HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_CURSOR_INFO info;
-    info.dwSize = 100;
-    info.bVisible = FALSE;
-    SetConsoleCursorInfo(hStdOut, &info);
-}
-
-void ClearConsole() {
-    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_SCREEN_BUFFER_INFO csbi;
-    SMALL_RECT scrollRect;
-    COORD scrollTarget;
-    CHAR_INFO fill;
-
-    if (!GetConsoleScreenBufferInfo(hConsole, &csbi)) {
+    if (!XStringListToTextProperty(&ptrITitle, 1, &windowName) ||
+        !XStringListToTextProperty(&ptrITitle, 1, &iconName)) {
+        puts("No memory!\n");
         return;
     }
 
-    scrollRect.Left = 0;
-    scrollRect.Top = 0;
-    scrollRect.Right = csbi.dwSize.X;
-    scrollRect.Bottom = csbi.dwSize.Y;
+    sizeHints.flags = PPosition | PSize | PMinSize;
+    sizeHints.min_width = win_wgt_min;
+    sizeHints.min_height = win_hgt_min;
 
-    scrollTarget.X = 0;
-    scrollTarget.Y = (SHORT)(0 - csbi.dwSize.Y);
+    xwmHints.flags = StateHint | IconPixmapHint | InputHint;
+    xwmHints.initial_state = NormalState;
+    xwmHints.input = True;
+    xwmHints.icon_pixmap = pixmap;
 
-    fill.Char.UnicodeChar = TEXT(' ');
-    fill.Attributes = csbi.wAttributes;
+    classHint.res_name = argv[0];
+    classHint.res_class = PClass;
 
-    ScrollConsoleScreenBuffer(hConsole, &scrollRect, NULL, scrollTarget, &fill);
-    csbi.dwCursorPosition.X = 0;
-    csbi.dwCursorPosition.Y = 0;
+    XSetWMProperties(display, window, &windowName, &iconName, argv, argc,
+                     &sizeHints, &xwmHints, &classHint);
 
-    SetConsoleCursorPosition(hConsole, csbi.dwCursorPosition);
 }
 
-void GetConsoleBounds() {
-    HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    CONSOLE_SCREEN_BUFFER_INFO bufferInfo;
-    GetConsoleScreenBufferInfo(hStdOut, &bufferInfo);
-    nCols = (short)(bufferInfo.srWindow.Right - bufferInfo.srWindow.Left + 1);
-    nRows = (short)(bufferInfo.srWindow.Bottom - bufferInfo.srWindow.Top + 1);
-}
+Bool InitScreen(int argc, char *argv[]) {
+    int ScreenNumber;
 
-void ClearConsoleLine(COORD coord, DWORD nSize) {
-    HANDLE hStdHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-    SetConsoleCursorPosition(hStdHandle, coord);
-    PTCHAR szWhiteSpace = HeapAlloc(GetProcessHeap(), 0, nSize * sizeof(TCHAR) + 1);
-    memset(szWhiteSpace, ' ', nSize);
-    szWhiteSpace[nSize] = '\0';
-    WriteConsole(hStdHandle, szWhiteSpace, nSize, NULL, NULL);
-    HeapFree(GetProcessHeap(), 0, szWhiteSpace);
-}
-
-void WriteConsoleLine(COORD coord, PTCHAR szLine) {
-    HANDLE hStdHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-    SetConsoleCursorPosition(hStdHandle, coord);
-    DWORD nStringSize = strlen(szLine);
-    WriteConsole(hStdHandle, szLine, nStringSize, NULL, 0);
-}
-
-void WriteConsoleChar(COORD coord, CHAR ch) {
-    HANDLE hStdHandle = GetStdHandle(STD_OUTPUT_HANDLE);
-    SetConsoleCursorPosition(hStdHandle, coord);
-    
-}
-
-void RenderThread(void* pArg) {
-    int nCurrentUserKey = 0;
-    while (TRUE) {
-        if (nLastUserKey == esc) {
-            break;
-        }
-        LARGE_INTEGER frequency;
-        LARGE_INTEGER start;
-        LARGE_INTEGER end;
-        int interval;
-        QueryPerformanceFrequency(&frequency);
-        QueryPerformanceCounter(&start);
-        GetUserKey(&nCurrentUserKey);
-
-
-        QueryPerformanceCounter(&end);
-        interval = ((double)(end.QuadPart - start.QuadPart) / frequency.QuadPart * 1000);
-        Sleep(MAX(FRAME_LONG - interval, 0));
+    if ((display = XOpenDisplay(NULL)) == NULL) {
+        puts("ERROR: Cannot connect to the X server!\n");
+        return False;
     }
-    _endthread();
+
+    ScreenNumber = DefaultScreen(display);
+    window = XCreateSimpleWindow(display,
+                                 RootWindow(display, ScreenNumber),
+                                 WINDOW_LEFT, WINDOW_TOP, WIDTH, HEIGHT, BORDER_WIDTH,
+                                 WhitePixel(display, ScreenNumber),
+                                 BlackPixel(display, ScreenNumber));
+    SetWindowManagerHints(display, PRG_CLASS, argv, argc, window, WINDOW_LEFT, WINDOW_TOP, WIDTH, HEIGHT,
+                          WIDTH_MIN, HEIGHT_MIN, TITLE, ICON_TITLE, 0);
+
+    XSelectInput(display, window, ExposureMask | KeyPressMask | PointerMotionMask |
+                                  ResizeRedirectMask | FocusChangeMask | VisibilityChangeMask | ButtonPressMask);
+    XMapWindow(display, window);
+    gcInited = False;
+
+    background_color.red = BACKGROUND_COLOR_R;
+    background_color.green = BACKGROUND_COLOR_G;
+    background_color.blue = BACKGROUND_COLOR_B;
+
+    screen_colormap = DefaultColormap(display, DefaultScreen(display));
+
+    Status other_color = XAllocColor(display,
+                                     screen_colormap,
+                                     &background_color);
+    if (other_color == 0) {
+        fprintf(stderr,
+                "ERROR: Can`t allocate memory for background color during init phase!\n");
+        return False;
+    }
+    hDrawQueue = CreateList();
+    GameField = CreateTwoDimArray(FIELD_HEIGHT, FIELD_WIDTH);
+
+    return True;
 }
 
-void AddMenuLabel(COORD coord, PCHAR szLabel, BOOL bSelected) {
-    MenuLabel label;
-    DWORD nLineSize = strlen(szLabel) + 1;
-    label.szLabel = HeapAlloc(GetProcessHeap(), 0, nLineSize * sizeof(CHAR));
-    strcpy_s(label.szLabel, nLineSize, szLabel);
-    label.bSelected = bSelected;
-    label.labelCoord = coord;
-    label.nLabelSize = nLineSize;
-    AddElement(dwLabelsList, &label, sizeof(MenuLabel));
+void DrawMainMenu() {
+    SMALL_RECT menuRect;
+    menuRect.Top = 0;
+    menuRect.Left = 0;
+    menuRect.Right = WIDTH;
+    menuRect.Bottom = HEIGHT;
+    DrawRect(&menuRect, )
 }
 
-void PrintCurrentMenu() {
-    for (size_t i = 0; i < Size(dwLabelsList); i++) {
-        MenuLabel* pLabel = (MenuLabel*)GetAt(dwLabelsList, i);
-        COORD labelCoord = pLabel->labelCoord;
-        if (labelCoord.X == 0 && labelCoord.Y == 0) {
-            labelCoord.X = menuLeftUp.X;
-            labelCoord.Y = menuLeftUp.Y + i * nLabelsVerticalMarginTop;
+void DrawBorder(XColor* border_color){
+    SMALL_RECT rect_coords;
+    rect_coords.Top = 0;
+    rect_coords.Left = 0;
+    rect_coords.Bottom = SQUARE_HEIGHT + BORDER_SIZE;
+    rect_coords.Right = SQUARE_WIDTH + BORDER_SIZE;
+    for (int i = 0; i < 20; i++) {
+        for (int j = 0; j < 10; j++) {
+            rect_coords.Top = i * (SQUARE_HEIGHT + BORDER_SIZE);
+            rect_coords.Left = j * (SQUARE_HEIGHT + BORDER_SIZE);
+            rect_coords.Bottom = rect_coords.Top + (SQUARE_HEIGHT + BORDER_SIZE);
+            rect_coords.Right = rect_coords.Left + (SQUARE_WIDTH + BORDER_SIZE);
+            DrawRect(&rect_coords, border_color, False);
         }
-        PCHAR szPrintLine = HeapAlloc(GetProcessHeap(), 0, (pLabel->nLabelSize + (pLabel->bSelected ?  3 : 0)) * sizeof(CHAR));
-        if (pLabel->bSelected) {
-            labelCoord.X -= 3;
-            wsprintf(szPrintLine, "-> %s", pLabel->szLabel);
-        }
-        else {
-            strcpy_s(szPrintLine, pLabel->nLabelSize, pLabel->szLabel);
-        }
-        WriteConsoleLine(labelCoord, szPrintLine);
-        HeapFree(GetProcessHeap(), 0, szPrintLine);
     }
 }
 
-void ClearCurrentMenu() {
-    for (size_t i = 0; i < Size(dwLabelsList); i++) {
-        MenuLabel* pLabel = (MenuLabel*)GetAt(dwLabelsList, i);
-        if (!pLabel->bNeedsClear) {
-            continue;
-        }
-        COORD labelCoord = pLabel->labelCoord;
-        if (labelCoord.X == 0 && labelCoord.Y == 0) {
-            labelCoord.X = menuLeftUp.X;
-            labelCoord.Y = menuLeftUp.Y + i * nLabelsVerticalMarginTop;
-        }
-        PCHAR szWhiteSpaceLine = HeapAlloc(GetProcessHeap(), 0, (pLabel->nLabelSize + (pLabel->bSelected ? 3 : 0)) * sizeof(CHAR));
-        if (pLabel->bSelected) {
-            labelCoord.X -= 3;
-            memset(szWhiteSpaceLine, ' ', pLabel->nLabelSize + 3);
-        }
-        else {
-            memset(szWhiteSpaceLine, ' ', pLabel->nLabelSize);
-        }
-        WriteConsoleLine(labelCoord, szWhiteSpaceLine);
-        HeapFree(GetProcessHeap(), 0, szWhiteSpaceLine);
+#define INIT_COLOR(COLOR,RED, GREEN, BLUE)          \
+    COLOR.red = RED;                                \
+    COLOR.green = GREEN;                            \
+    COLOR.blue = BLUE;                              \
+    XAllocColor(display, screen_colormap, &COLOR);  \
+
+
+XColor GetFigureColor(EFigure figureType) {
+    static XColor type1;
+    static XColor type2;
+    static XColor type3;
+    static XColor type4;
+    static XColor type5;
+    static XColor type6;
+    static XColor type7;
+    static Bool colorInited = False;
+    if (!colorInited){
+        INIT_COLOR(type1, 65535, 0, 0)
+        INIT_COLOR(type2,0,65535,0)
+        INIT_COLOR(type3,0,0,65535)
+        INIT_COLOR(type4,0,20000,60000)
+        INIT_COLOR(type5,65535,10000,0)
+        INIT_COLOR(type6,65535,32000,65535)
+        INIT_COLOR(type7,32000,65535,0)
+        colorInited = True;
+    }
+
+    switch (figureType) {
+        case LFigure:
+            return type1;
+        case TFigure:
+            return type2;
+        case ZFigure:
+            return type3;
+        case RectFigure:
+            return type4;
+        case Stick:
+            return type5;
+        case ZReversed:
+            return type6;
+        case LReversed:
+            return type7;
     }
 }
 
-void DrawBox(Container container) {
-    HANDLE hStdOut = GetStdHandle(STD_OUTPUT_HANDLE);
-    GotoXY(container.coords.X, container.coords.Y);
-    WriteConsole(hStdOut, "+", 1, NULL, NULL);
-    GotoXY(container.coords.X + container.sizes.X, container.coords.Y);
-    WriteConsole(hStdOut, "+", 1, NULL, NULL);
-    GotoXY(container.coords.X, container.coords.Y + container.sizes.Y);
-    WriteConsole(hStdOut, "+", 1, NULL, NULL);
-    GotoXY(container.coords.X + container.sizes.X, container.coords.Y + container.sizes.Y);
-    WriteConsole(hStdOut, "+", 1, NULL, NULL);
-    for (short i = 1; i < container.sizes.Y; i++) {
-        GotoXY(container.coords.X, container.coords.Y + i);
-        WriteConsole(hStdOut, "|", 1, NULL, NULL);
-        GotoXY(container.coords.X + container.sizes.X, container.coords.Y + i);
-        WriteConsole(hStdOut, "|", 1, NULL, NULL);
-    }
-    for (short i = 1; i < container.sizes.X; i++) {
-        GotoXY(container.coords.X + i, container.coords.Y);
-        WriteConsole(hStdOut, "-", 1, NULL, NULL);
-        GotoXY(container.coords.X + i, container.coords.Y + container.sizes.Y);
-        WriteConsole(hStdOut, "-", 1, NULL, NULL);
-    }
-}
-
-void ClearContainerData(Container container) {
-    for (short i = 1; i < container.sizes.Y; i++) {
-        COORD coords = { container.coords.X + 1, container.coords.Y + i };
-        PCHAR szWhiteSpaces = HeapAlloc(GetProcessHeap(), 0, container.sizes.X - 1);
-        szWhiteSpaces[container.sizes.X - 1] = '\0';
-        memset(szWhiteSpaces, ' ', container.sizes.X - 2);
-        WriteConsoleLine(coords, szWhiteSpaces);
-    }
-}
-
-void DrawTetrisScreen() {
-    fieldContainer.coords.X = 10;
-    fieldContainer.coords.Y = 0;
-    fieldContainer.sizes.X = 10;
-    fieldContainer.sizes.Y = 20;
-
-    nextItemContainer.coords.X = fieldContainer.coords.X + fieldContainer.sizes.X + 2;
-    nextItemContainer.coords.Y = fieldContainer.coords.Y;
-    nextItemContainer.sizes.X = 6;
-    nextItemContainer.sizes.Y = fieldContainer.sizes.Y;
-
-    timeContainer.sizes.Y = 2;
-    timeContainer.coords.X = 1;
-    timeContainer.coords.X = fieldContainer.coords.X - timeContainer.coords.X;
-    timeContainer.coords.Y = (fieldContainer.coords.Y + fieldContainer.sizes.Y) - timeContainer.sizes.Y;
-
-    scoresContainer.coords.X = 1;
-    scoresContainer.sizes.Y = 2;
-    scoresContainer.sizes.X = fieldContainer.coords.X - scoresContainer.coords.X;
-    scoresContainer.coords.Y = timeContainer.coords.Y - scoresContainer.sizes.Y - 1;
-
-    DrawBox(fieldContainer);
-    DrawBox(nextItemContainer);
-    DrawBox(scoresContainer);
-    DrawBox(timeContainer);
-}
-
-
-void DrawTetrisFigure(TetrisFigure* figure) {
-    /*
-    COORD coords = figure->coords;
-    switch (figure->figureType)
-    {
-    case TFigure:
-        switch (figure->position)
-        {
-        case EUp:
-            CHAR szLine[4];
-            wsprintf(szLine, "***");
-            coords.X -= 1;
-            WriteConsoleLine(coords, szLine);
-            wsprintf(szLine, " * ");
-            coords.Y -= 1;
-            WriteConsoleLine(coords, szLine);
-            break;
-        case ELeft:
-            CHAR szLine[3];
-            wsprintf(szLine, "* ");
-            coords.X -= 1;
-            coords.Y += 1;
-            WriteConsoleLine(coords, szLine);
-            wsprintf(szLine, "**");
-            coords.Y -= 1;
-            WriteConsoleLine(coords, szLine);
-            wsprintf(szLine, "* ");
-            coords.Y -= 1;
-            WriteConsoleLine(coords, szLine);
-            break;
-        case EDown:
-            CHAR szLine[4];
-            wsprintf(szLine, "***");
-            coords.X -= 1;
-            WriteConsoleLine(coords, szLine);
-            wsprintf(szLine, " * ");
-            coords.Y += 1;
-            WriteConsoleLine(coords, szLine);
-            break;
-        case ERight:
-            CHAR szLine[3];
-            wsprintf(szLine, " *");
-            coords.X -= 1;
-            coords.Y += 1;
-            WriteConsoleLine(coords, szLine);
-            wsprintf(szLine, "**");
-            coords.Y -= 1;
-            WriteConsoleLine(coords, szLine);
-            wsprintf(szLine, " *");
-            coords.Y -= 1;
-            WriteConsoleLine(coords, szLine);
-            break;
-        default:
-            break;
+void DrawFigure(HANDLE hFigure, BOOL bClear) {
+    TetrisFigure* pFigure = (TetrisFigure*)hFigure;
+    HANDLE hCoordsList = pFigure->hCoordsList;
+    XColor color = GetFigureColor(pFigure->figureType);
+    BeginDraw();
+    for (int i = 0; i < Size(hCoordsList); i++) {
+        // TODO: Clear figure
+        COORD* coord = (COORD*)GetAt(hCoordsList, i);
+        SMALL_RECT tempPart;
+        tempPart.Left = (pFigure->coords.X + coord->X) * (SQUARE_WIDTH + BORDER_SIZE) + BORDER_SIZE / 2;
+        tempPart.Top = (pFigure->coords.Y + coord->Y) * (SQUARE_HEIGHT + BORDER_SIZE) + BORDER_SIZE / 2;
+        tempPart.Right = tempPart.Left + SQUARE_WIDTH;
+        tempPart.Bottom = tempPart.Top + SQUARE_HEIGHT;
+        if(!bClear) {
+            DrawRect(&tempPart, &color, True);
+        } else {
+            DrawRect(&tempPart, &background_color, True);
         }
-        break;
-    case LFigure:
-        switch (figure->position)
-        {
-        case EUp:
-            coords.X = 
-            CHAR szLine[3];
-            wsprintf(szLine, "* ");
-            WriteConsoleLine()
-        default:
-            break;
-        }
-        break;
-    case ZFigure:
-        break;
-    case RectFigure:
-        break;
-    case Stick:
-        break;
-    case ZReversed:
-        break;
-    case LReversed:
-        break;
-    default:
-        break;
     }
-    */
+    EndDraw();
 }
 
-void DrawBlockLined(COORD leftUp, PCHAR szLinedBlock) {
-    PCHAR szLine = strtok(szLinedBlock, "\n");
-    while (szLine != NULL)
-    {
-        DWORD nLineSize = strlen(szLine);
-        COORD coord = leftUp;
-        for (int i = 0; i < nLineSize; i++) {
-            if (szLine[i] == ' ') {
-                coord.X++;
-                continue;
-            }
-            if (szLine[i] == '\n') {
+void* X11EventHandler(void* args){
+    while (True) {
+        XNextEvent(display, &report);
+        switch (report.type) {
+            case Expose:
+            {
+                printf("Expose\n");
+                DrawMessage msg;
+                msg.drawTarget = EExpose;
+                msg.score = report.xexpose.count;
+                PutDrawMessage(&msg);
                 break;
             }
-            WriteConsoleLine(coord, "*");
+            case KeyPress: {
+                printf("Key press\n");
+                GameMessage gameMessage;
+                gameMessage.type = EControlMessage;
+                ControlMessage msg;
+                msg.controlTarget = EKeyPress;
+                msg.InputData.keycode = report.xkey.keycode;
+                msg.InputData.mouseCoord.X = report.xkey.x;
+                msg.InputData.mouseCoord.Y = report.xkey.y;
+                gameMessage.messageInfo.controlMessage = msg;
+                PutControlMessage(&gameMessage);
+                break;
+            }
+            case ResizeRequest: {
+                printf("Resize\n");
+                DrawMessage msg;
+                msg.drawTarget = EResize;
+                msg.windowSize.X = report.xresizerequest.width;
+                msg.windowSize.Y = report.xresizerequest.height;
+                PutDrawMessage(&msg);
+                break;
+            }
+            case MotionNotify: {
+//                printf("Motion\n");
+                GameMessage gameMessage;
+                gameMessage.type = EControlMessage;
+                ControlMessage msg;
+                msg.controlTarget = EMotion;
+                msg.InputData.mouseCoord.X = report.xkey.x;
+                msg.InputData.mouseCoord.Y = report.xkey.y;
+                gameMessage.messageInfo.controlMessage = msg;
+                PutControlMessage(&gameMessage);
+                break;
+            }
+            case FocusOut: {
+//                printf("Focus out\n");
+                GameMessage gameMessage;
+                gameMessage.type = EControlMessage;
+                ControlMessage msg;
+                msg.controlTarget = EFocus;
+                msg.inFocus = FALSE;
+                gameMessage.messageInfo.controlMessage = msg;
+                PutControlMessage(&gameMessage);
+                break;
+            }
+            case ButtonPress: {
+                printf("Btn\n");
+                GameMessage gameMessage;
+                gameMessage.type = EControlMessage;
+                ControlMessage msg;
+                msg.controlTarget = EKeyPress;
+                msg.InputData.keycode = report.xbutton.button;
+                msg.InputData.mouseCoord.X = report.xbutton.x;
+                msg.InputData.mouseCoord.Y = report.xbutton.y;
+                gameMessage.messageInfo.controlMessage = msg;
+                PutControlMessage(&gameMessage);
+                break;
+            }
+            default:
+                printf("Unhandled report type: %d\n", report.type);
         }
-        szLine = strtok(NULL, "\n");
-        leftUp.Y++;
+        if(GetEndGame()) {
+            break;
+        }
+    }
+
+    pthread_exit(NULL);
+}
+
+void DrawLoop() {
+    int x = BORDER_SIZE / 2;
+    int y = BORDER_SIZE / 2;
+    SMALL_RECT rect_coords;
+    rect_coords.Left = x;
+    rect_coords.Top = y;
+    rect_coords.Right = SQUARE_WIDTH;
+    rect_coords.Bottom = SQUARE_HEIGHT;
+    gc = XCreateGC(display, window, 0, NULL);
+    XColor color_cube;
+    color_cube.red = 65535;
+    color_cube.green = 0;
+    color_cube.blue = 0;
+
+    screen_colormap = DefaultColormap(display, DefaultScreen(display));
+    Status other_color = XAllocColor(display, screen_colormap, &color_cube);
+    if (other_color == 0) {
+        fprintf(stderr, "ERROR: Can`t allocate memory for background color_cube during init phase!\n");
+    }
+
+    XColor color_border;
+    color_border.red = 0;
+    color_border.green = 65535;
+    color_border.blue = 0;
+
+    other_color = XAllocColor(display, screen_colormap,
+                                     &color_border);
+    if (other_color == 0) {
+        fprintf(stderr,"ERROR: Can`t allocate memory for background color_cube during init phase!\n");
+    }
+    BeginDraw();
+    DrawBorder(&color_border);
+    EndDraw();
+    while (True) {
+        pthread_mutex_lock(&drawQueueMut);
+        while (Size(hDrawQueue) == 0) {
+            pthread_cond_wait(&drawQueueCond, &drawQueueMut);
+        }
+        HANDLE hCurrentTasks = CreateList();
+        while (Size(hDrawQueue) != 0) {
+            HANDLE hMessage = GetAt(hDrawQueue, 0);
+            AddElement(hCurrentTasks, hMessage, sizeof(GameMessage));
+            RemoveAt(hDrawQueue, 0);
+        }
+        pthread_mutex_unlock(&drawQueueMut);
+        while (Size(hCurrentTasks) != 0) {
+            GameMessage* msg = (GameMessage*) GetAt(hCurrentTasks, 0);
+            switch (msg->messageInfo.drawMessage.drawTarget) {
+                case EExpose:
+                    printf("Processing exposure event\n");
+                    if (msg->messageInfo.drawMessage.score!= 0) {
+                        break;
+                    }
+                    RedrawScreen(&color_border);
+                    break;
+                case EResize:
+                    printf("Resize request width:%d, height:%d\n", msg->messageInfo.drawMessage.windowSize.X,msg->messageInfo.drawMessage.windowSize.Y);
+                    ResizeScreen(msg->messageInfo.drawMessage.windowSize.X, msg->messageInfo.drawMessage.windowSize.Y);
+                    break;
+                case EFigureMove: {
+//                    printf("FigureMove\n");
+                    TetrisFigure* oldPosition = msg->messageInfo.drawMessage.figureMove.oldPosition;
+                    TetrisFigure* newPosition = msg->messageInfo.drawMessage.figureMove.newPosition;
+//                    printf("New pos: %d - %d", newCoord.X, newCoord.Y);
+                    assert(newPosition->coords.X >= 0 && newPosition->coords.X < 10 &&
+                           newPosition->coords.Y >= 0 && newPosition->coords.Y < 20);
+                    for(int i = 0; i < Size(oldPosition->hCoordsList); i++) {
+                        COORD *coord = (COORD *) GetAt(oldPosition->hCoordsList, i);
+                        if (!(coord->Y + oldPosition->coords.Y >= 20 || coord->X + oldPosition->coords.X >= 10)) {
+                            Set(GameField, coord->X + oldPosition->coords.X, coord->Y + oldPosition->coords.Y, 0);
+                        } else {
+                            assert(1 == 0); // Coord out of range
+                        }
+                    }
+                    FreeFigure(oldPosition);
+//                    printf("New pos after set: %d - %d", newCoord.X, newCoord.Y);
+                    for (int i = 0; i < Size(newPosition->hCoordsList); i++) {
+                        COORD *coord = (COORD *) GetAt(newPosition->hCoordsList, i);
+                        if (!(coord->Y + newPosition->coords.Y >= 20 || coord->X + newPosition->coords.X >= 10)) {
+                            Set(GameField, coord->X + newPosition->coords.X, coord->Y + newPosition->coords.Y, newPosition->figureType);
+                        } else {
+                            assert(1 == 0); // Coord out of range
+                        }
+                    }
+                    FreeFigure(newPosition);
+                    RedrawScreen(&color_border);
+                    break;
+                }
+                case EFieldRedraw:
+                    printf("WARNING: Not implemented\n");
+                    break;
+                case ERemoveRow:
+                    printf("WARNING: Not implemented\n");
+                    break;
+                case EMenu:
+                    printf("WARNING: Not implemented\n");
+                    break;
+                case EScore:
+                    printf("WARNING: Not implemented\n");
+                    break;
+                case ERemoveLine: {
+                    int lineNum = msg->messageInfo.drawMessage.rowNumber;
+                    if(lineNum < FIELD_HEIGHT) {
+                        RemoveLine(GameField, lineNum);
+                        RedrawScreen(&color_border);
+                    }
+                    break;
+                }
+            }
+            RemoveAt(hCurrentTasks, 0);
+            fflush(NULL);
+        }
+        DeleteList(hCurrentTasks);
+
+        if(GetEndGame()) {
+            printf("End game!");
+        }
+    }
+    pthread_exit(0);
+}
+
+void DrawRect(SMALL_RECT *coord, XColor *color, Bool filled) {
+    XSetForeground(display, gc, color->pixel);
+    // TODO: Revert foreground color
+    // TODO: Shading
+    // TODO: Borderlands
+    if (filled) {
+        XFillRectangle(display, window, gc, coord->Left, coord->Top,
+                       coord->Right - coord->Left, coord->Bottom - coord->Top);
+    } else {
+        XDrawRectangle(display, window, gc, coord->Left, coord->Top,
+                       coord->Right - coord->Left, coord->Bottom - coord->Top);
     }
 }
 
-void ClearBlock(COORD leftUp, COORD sizes) {
-    COORD coords = leftUp;
-    for (int i = leftUp.Y; i < leftUp.Y + sizes.Y; i++) {
-        PCHAR szWhiteSpaces = malloc(sizes.X + 1);
-        memset(szWhiteSpaces, ' ', sizes.X);
-        WriteConsoleLine(leftUp, szWhiteSpaces);
-        coords.Y++;
-    }
+void ClearRect(SMALL_RECT *coord) {
+    XSetForeground(display, gc, background_color.pixel);
+    XFillRectangle(display, window, gc, coord->Left, coord->Top, coord->Right - coord->Left, coord->Bottom - coord->Top);
 }
 
-void DrawBlockMatrix(COORD leftUp, PCHAR* szMatrixBlock, size_t nLines) {
-    for (int i = 0; i < nLines; i++) {
-        WriteConsoleLine(leftUp, szMatrixBlock[i]);
-        leftUp.Y++;
-    }
-}
-
-void DrawTetrisNextFigures() {
-
-}
-
-void DrawGameWindow() {
-    HideCursor();
-    GetConsoleBounds();
-    COORD lineCoords = { 0, 0 };
-    menuLeftUp.X = (nCols / 3);
-    menuLeftUp.Y = (nRows / 3);
-    PCHAR szLine = HeapAlloc(GetProcessHeap(), 0, nCols + 1);
-    szLine[nCols] = '\0';
-    for (short i = 0; i < nRows; i++) {
-        memset(szLine, ' ', nCols);
-        if (i == 0 || i == nRows - 1) {
-            szLine[0] = '+';
-            szLine[nCols - 1] = '+';
-            for (int j = 1; j < nCols - 1; j++) {
-                szLine[j] = '-';
+void RedrawScreen(XColor* color_border) {
+    BeginDraw();
+    DrawBorder(color_border);
+    for (int i = 0; i < 20; i++) {
+        for(int j = 0; j < 10; j++) {
+            SMALL_RECT rect_coords;
+            rect_coords.Top = i * (SQUARE_HEIGHT + BORDER_SIZE) + BORDER_SIZE / 2;
+            rect_coords.Left = j * (SQUARE_HEIGHT + BORDER_SIZE)  + BORDER_SIZE / 2;
+            rect_coords.Bottom = rect_coords.Top + (SQUARE_HEIGHT);
+            rect_coords.Right = rect_coords.Left + (SQUARE_WIDTH);
+            if (Get(GameField, j, i) > 0 && Get(GameField, j, i) <= 8) {
+                XColor rect_color = GetFigureColor(Get(GameField, j, i));
+                DrawRect(&rect_coords, &rect_color, True);
+            }
+            else {
+                DrawRect(&rect_coords, &background_color, True);
             }
         }
-        else {
-            szLine[0] = '|';
-            szLine[nCols - 1] = '|';
-        }
-        WriteConsoleLine(lineCoords, szLine);
-        lineCoords.Y++;
     }
-    dwLabelsList = CreateList();
-    dwGraphicalConveor = CreateList();
-    SetDestroyFunction(dwLabelsList, &DestroyMenuLabel);
-    lineCoords.Y = 0;
-    wsprintf(szLine, "1. Start Game");
-    AddMenuLabel(lineCoords, szLine, TRUE);
-    wsprintf(szLine, "2. Game scores");
-    AddMenuLabel(lineCoords, szLine, FALSE);
-    wsprintf(szLine, "3. Exit game");
-    AddMenuLabel(lineCoords, szLine, FALSE);
-    PrintCurrentMenu();
-    //ghMutex = CreateMutex(NULL, FALSE, NULL);
-    //_beginthread(RenderThread, 0, NULL);
+    EndDraw();
 }
 
-void GetUserKey(int* nStateKey) {
-    WaitForSingleObject(ghMutex, INFINITE);
-    *nStateKey = nLastUserKey;
-    nLastUserKey = -1;
-    ReleaseMutex(ghMutex);
+void ResizeScreen(int height, int width) {}
+
+
+void BeginDraw() {
+    //if (gcInited) {
+    //    printf("WARNING: Trying to init GC without freeing it!\n");
+    //    EndDraw();
+    //}
+
+    gcInited = True;
 }
 
-void SetUserKey(int nKey) {
-    WaitForSingleObject(ghMutex, INFINITE);
-    nLastUserKey = nKey;
-    ReleaseMutex(ghMutex);
+void EndDraw() {
+    //if (gcInited) {
+        //XFlushGC(display,gc);
+        XFlush(display);
+        //XFreeGC(display, gc);
+    //} else
+     //   printf("WARNING: Trying to free GC without creating it!\n");
+    //gcInited = False;
 }
 
-#endif
+void DisposeScreen() {
+    XCloseDisplay(display);
+}
+
+void PutDrawMessage(HANDLE hMessage){
+    GameMessage message;
+    message.type = EDrawMessage;
+    DrawMessage* pDrawMsg = (DrawMessage*)hMessage;
+    if(pDrawMsg != NULL) {
+        message.messageInfo.drawMessage = *(DrawMessage *) hMessage;
+        pthread_mutex_lock(&drawQueueMut);
+        AddElement(hDrawQueue, &message, sizeof(GameMessage));
+        pthread_mutex_unlock(&drawQueueMut);
+        pthread_cond_broadcast(&drawQueueCond);
+    }
+}

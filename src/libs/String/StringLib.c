@@ -96,7 +96,7 @@ int Alloc(String string, int length) {
 
 /*  int ballocmin (bstring b, int len)
  *
- *  Set the size of the memory backing the bstring b to len or b->StrLen+1,
+ *  SetAt the size of the memory backing the bstring b to len or b->StrLen+1,
  *  whichever is larger.  Note that repeated use of this function can degrade
  *  performance.
  */

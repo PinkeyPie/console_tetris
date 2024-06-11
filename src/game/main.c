@@ -1,33 +1,51 @@
-#include <stdio.h>
-#include "Collection.h"
-#include "stdlib.h"
-#ifdef WIN32
-#include "windows.h"
-#include "conio.h"
-#endif
 #include "Draw.h"
+#include "GameLogic.h"
+#include "Collection.h"
+#include "pthread.h"
+#include "TetrisFigure.h"
 #include "StringLib.h"
-#include "Stream.h"
+#include "TwoDimArray.h"
 
-int main() {
+void* GraphicalThread(void* args) {
+    DrawLoop();
+}
 
-    String string = FromCString("Hello world");
-    String someLow = FromCString("     hello world     ");
-    Trim(someLow);
-    Concat(string, someLow);
-    String copy = StrCopy(string);
-    if(StrCompareCaseless(string, someLow)) {
-        Truncate(string, 10);
+void printArray(TwoDim* array) {
+    for(int i = 0; i < array->height; i++) {
+        for(int j = 0; j < array->width; j++) {
+            unsigned char ch = Get(array, j, i);
+            if(ch == 0) {
+                printf("0");
+            } else {
+                printf("%c", ch);
+            }
+        }
+        printf("\n");
+    }
+}
+
+int main(int argc, char* argv[]) {
+    if (!InitScreen(argc, argv)) {
+        printf("Error: cant initialize screen");
+        return -1;
     }
 
-    (string, )int strlen = (int)sizeof("hello world")-1;
-    int maxlen = (-32);
-    unsigned char* data = (unsigned char*)("" "hello world" "");
+    pthread_t graphical_thread;
+    pthread_t x11Thread;
+    pthread_t gameThread;
+    int status = pthread_create(&graphical_thread, NULL, GraphicalThread, NULL) |
+                 pthread_create(&x11Thread, NULL, X11EventHandler, NULL) |
+                 pthread_create(&gameThread, NULL, GameLoop, NULL);
+    if(status != 0) {
+        printf("Error: cant initialize graphical loop");
+        return -1;
+    }
 
-    //DrawGameWindow();
-//    DWORD dwLines = CreateVector(EString, sizeof(wchar_t));
-//    AddStringElement(dwLines, L"Hello world");
-//    wchar_t* szLine = GetStringAt(dwLines, 0);
+    while (True) { // Game logic loop
+        usleep(10000);
+    }
+    pthread_join(graphical_thread, NULL);
+    DisposeScreen();
     FreeCollections();
     return 0;
 }

@@ -28,7 +28,11 @@ BOOL AddElement(HANDLE hCollection, void* pElement, size_t nElemSize) {
         return FALSE;
     }
     void* pCollectionElement = malloc(nElemSize);
+#ifdef _MSC_VER
     memcpy_s(pCollectionElement, nElemSize, pElement, nElemSize);
+#else
+    memcpy(pCollectionElement, pElement, nElemSize);
+#endif
     if (collection->collectionType == ELinkedList) {
         bResult = ListAddElement(hCollection, pCollectionElement, EStruct);
     }
@@ -36,7 +40,9 @@ BOOL AddElement(HANDLE hCollection, void* pElement, size_t nElemSize) {
         bResult = VectorAddElement(hCollection, pCollectionElement);
     }
     if (!bResult || collection->collectionType == EVector) {
-        free(pCollectionElement);
+        if(pCollectionElement != NULL) {
+            free(pCollectionElement);
+        }
     }
     return bResult;
 }
@@ -74,7 +80,11 @@ BOOL AddStringElement(HANDLE hCollection, wchar_t* szElement) {
     }
     size_t nStringSize = (wcslen(szElement) + 1);
     wchar_t* szNewElem = malloc(nStringSize * sizeof(wchar_t));
+#ifdef _MSC_VER
     wcscpy_s(szNewElem, nStringSize, szElement);
+#else
+    wcscpy(szNewElem, szElement);
+#endif
     void* pElement = (void*)szNewElem;
     BOOL bResult = FALSE;
     if (collection->collectionType == ELinkedList) {
@@ -117,14 +127,14 @@ Type Get##TypeName##At(HANDLE hCollection, size_t nPosition) {          \
             return TypeReturn;                                          \
         }                                                               \
         if (eType == ETypeName) {                                       \
-            return *(Type*)pValue;                                      \
+            return *((Type*)pValue);                                    \
         }                                                               \
     }                                                                   \
     else if (collection->collectionType == EVector) {                   \
         Type nValue = 0;                                                \
         if (VectorGetType(collection, 0) == ETypeName) {                \
             void* pElem = VectorGetAt(collection, nPosition);           \
-        nValue = *(Type*)(pElem);                                       \
+            nValue = *((Type*)(pElem));                                 \
         }                                                               \
         return nValue;                                                  \
     }                                                                   \
@@ -135,7 +145,32 @@ GetFunction(int, Int, EInt, 0)
 GetFunction(long, Long, ELong, 0)
 GetFunction(float, Float, EFloat, 0.f)
 GetFunction(double, Double, EDouble, 0.0)
-GetFunction(wchar_t*, String, EString, L"")
+
+wchar_t* GetStringAt(HANDLE hCollection, size_t nPosition) {
+    AbstractCollection* collection = (AbstractCollection*)hCollection;
+    if(collection == NULL) {
+        return L"";
+    }
+    EType eType = EString;
+    if (collection->collectionType == ELinkedList) {
+        void* pValue = ListGetAt(collection, nPosition, &eType);
+        if (pValue == NULL) {
+            return L"";
+        }
+        if (eType == EString) {
+            return (wchar_t*)pValue;
+        }
+    }
+    else if (collection->collectionType == EVector) {
+        wchar_t* pValue = L"";
+        if (VectorGetType(collection, 0) == EString) {
+            void* pElem = VectorGetAt(collection, nPosition);
+            pValue = (wchar_t*)(pElem);
+        }
+        return pValue;
+    }
+    return 0;
+}
 
 BOOL RemoveAt(HANDLE hCollection, size_t nPosition) {
     AbstractCollection* collection = (AbstractCollection*)hCollection;
@@ -179,7 +214,7 @@ size_t Size(HANDLE hCollection) {
     return 0;
 }
 
-BOOL Set(HANDLE hCollection, size_t nPosition, void* pValue, EType eType) {
+BOOL SetAt(HANDLE hCollection, size_t nPosition, void* pValue, EType eType) {
     AbstractCollection* collection = (AbstractCollection*)hCollection;
     if(collection == NULL) {
         return FALSE;
@@ -193,225 +228,159 @@ BOOL Set(HANDLE hCollection, size_t nPosition, void* pValue, EType eType) {
     return FALSE;
 }
 
-#define SetFunction*()
-
-BOOL SetInt(DWORD dwList, size_t nPosition, int nValue) {
-    void* pValue = malloc(sizeof(int));
-    *(int*)pValue = nValue;
-    BOOL bIsSet = FALSE;
-    if (dwList & ELinkedList) {
-        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, EInt);
-    }
-    else if (dwList & EVector) {
-        if (VectorGetType(dwList ^ EVector, 0) == EInt) {
-            bIsSet = VectorSet(dwList ^ EVector, nPosition, pValue);
-        }
-    }
-    if (!bIsSet || dwList & EVector) {
-        free(pValue);
-    }
-    return bIsSet;
+#define SetFunction(Type, TypeName, EType)                                      \
+BOOL Set##TypeName(HANDLE hCollection, size_t nPosition, Type nValue) {         \
+    AbstractCollection* collection = (AbstractCollection*)hCollection;          \
+    if(collection == NULL) {                                                    \
+        return FALSE;                                                           \
+    }                                                                           \
+    void* pValue = malloc(sizeof(Type));                                        \
+    *(Type*)pValue = nValue;                                                    \
+    BOOL bIsSet = FALSE;                                                        \
+    if (collection->collectionType == ELinkedList) {                            \
+        bIsSet = ListSet(collection, nPosition, pValue, EType);                 \
+    }                                                                           \
+    else if (collection->collectionType == EVector) {                           \
+        if (VectorGetType(collection, 0) == EType) {                            \
+            bIsSet = VectorSet(collection, nPosition, pValue);                  \
+        }                                                                       \
+    }                                                                           \
+    if (!bIsSet || collection->collectionType == EVector) {                     \
+        free(pValue);                                                           \
+    }                                                                           \
+    return bIsSet;                                                              \
 }
 
-BOOL SetLong(DWORD dwList, size_t nPosition, long nValue) {
-    void* pValue = malloc(sizeof(long));
-    *(long*)pValue = nValue;
-    BOOL bIsSet = FALSE;
-    if (dwList & ELinkedList) {
-        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, ELong);
-    }
-    else if (dwList & EVector) {
-        if (VectorGetType(dwList ^ EVector, 0) == ELong) {
-            bIsSet = VectorSet(dwList ^ EVector, nPosition, pValue);
-        }
-    }
-    if (!bIsSet || dwList & EVector) {
-        free(pValue);
-    }
-    return bIsSet;
-}
-BOOL SetDouble(DWORD dwList, size_t nPosition, double nValue) {
-    void* pValue = malloc(sizeof(double));
-    *(double*)pValue = nValue;
-    BOOL bIsSet = FALSE;
-    if (dwList & ELinkedList) {
-        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, EDouble);
-    }
-    else if (dwList & EVector) {
-        if (VectorGetType(dwList ^ EVector, 0) == EDouble) {
-            bIsSet = VectorSet(dwList ^ EVector, nPosition, pValue);
-        }
-    }
-    if (!bIsSet || dwList & EVector) {
-        free(pValue);
-    }
-    return bIsSet;
-}
+SetFunction(int, Int, EInt)
+SetFunction(long, Long, ELong)
+SetFunction(float, Float, EFloat)
+SetFunction(double, Double, EDouble)
 
-BOOL SetFloat(DWORD dwList, size_t nPosition, float nValue) {
-    void* pValue = malloc(sizeof(float));
-    *(float*)pValue = nValue;
-    BOOL bIsSet = FALSE;
-    if (dwList & ELinkedList) {
-        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, EFloat);
+BOOL SetString(HANDLE hCollection, size_t nPosition, wchar_t* szValue) {
+    AbstractCollection* collection = (AbstractCollection*)hCollection;
+    if(collection == NULL) {
+        return FALSE;
     }
-    else if (dwList & EVector) {
-        if (VectorGetType(dwList ^ EVector, 0) == EFloat) {
-            bIsSet = VectorSet(dwList ^ EVector, nPosition, pValue);
-        }
-    }
-    if (!bIsSet || dwList & EVector) {
-        free(pValue);
-    }
-    return bIsSet;
-}
-
-BOOL SetString(DWORD dwList, size_t nPosition, wchar_t* szValue) {
     size_t nStrSize = wcslen(szValue) + 1;
     void* pValue = malloc(sizeof(wchar_t) * nStrSize);
-#ifdef WIN32
+#ifdef _MSC_VER
     wcscpy_s(pValue, nStrSize, szValue);
+#else
+    wcscpy(pValue, szValue);
 #endif
     BOOL bIsSet = FALSE;
-    if (dwList & ELinkedList) {
-        bIsSet = ListSet(dwList ^ ELinkedList, nPosition, pValue, EString);
+    if (collection->collectionType == ELinkedList) {
+        bIsSet = ListSet(collection, nPosition, pValue, EString);
     }
-    else if (dwList & EVector) {
-        if (VectorGetType(dwList ^ EVector, 0) == EString) {
-            bIsSet = VectorSet(dwList ^ EVector, nPosition, pValue);
+    else if (collection->collectionType == EVector) {
+        if (VectorGetType(collection, 0) == EString) {
+            bIsSet = VectorSet(collection, nPosition, pValue);
         }
     }
-    if (!bIsSet || dwList & EVector) {
+    if (!bIsSet || collection->collectionType == EVector) {
         free(pValue);
     }
     return bIsSet;
 }
 
-BOOL InsertAt(DWORD dwList, size_t nPosition, void* pValue, EType eType) {
-    if (dwList & ELinkedList) {
-        return ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, eType);
+BOOL InsertAt(HANDLE hCollection, size_t nPosition, void* pValue, EType eType) {
+    AbstractCollection* collection = (AbstractCollection*)hCollection;
+    if(collection == NULL) {
+        return FALSE;
     }
-    else if (dwList & EVector) {
-        return VectorInsertAt(dwList ^ EVector, nPosition, pValue);
+    if (collection->collectionType == ELinkedList) {
+        return ListInsertAt(collection, nPosition, pValue, eType);
+    }
+    else if (collection->collectionType == EVector) {
+        return VectorInsertAt(collection, nPosition, pValue);
     }
     return FALSE;
 }
 
-BOOL InsertIntAt(DWORD dwList, size_t nPosition, int nValue) {
-    void* pValue = malloc(sizeof(int));
-    *(int*)pValue = nValue;
-    BOOL bResult = FALSE;
-    if (dwList & ELinkedList) {
-        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, EInt);
-    }
-    else if (dwList & EVector) {
-        if (VectorGetType(dwList ^ EVector, 0) == EInt) {
-            bResult = VectorInsertAt(dwList ^ EVector, nPosition, pValue);
-        }
-    }
-    if (!bResult || dwList & EVector) {
-        free(pValue);
-    }
-    return bResult;
+#define InsertFunction(Type, TypeName, EType)                                       \
+BOOL Insert##TypeName##At(HANDLE hCollection, size_t nPosition, Type nValue) {      \
+    AbstractCollection* collection = (AbstractCollection*)hCollection;              \
+    if(collection == NULL) {                                                        \
+        return FALSE;                                                               \
+    }                                                                               \
+    void* pValue = malloc(sizeof(Type));                                            \
+    *(Type*)pValue = nValue;                                                        \
+    BOOL bResult = FALSE;                                                           \
+    if (collection->collectionType == ELinkedList) {                                \
+        bResult = ListInsertAt(collection, nPosition, pValue, EType);               \
+    }                                                                               \
+    else if (collection->collectionType == EVector) {                               \
+        if (VectorGetType(collection, 0) == EType) {                                \
+            bResult = VectorInsertAt(collection, nPosition, pValue);                \
+        }                                                                           \
+    }                                                                               \
+    if (!bResult || collection->collectionType == EVector) {                        \
+        free(pValue);                                                               \
+    }                                                                               \
+    return bResult;                                                                 \
 }
 
-BOOL InsertLongAt(DWORD dwList, size_t nPosition, long nValue) {
-    void* pValue = malloc(sizeof(long));
-    *(long*)pValue = nValue;
-    BOOL bResult = FALSE;
-    if (dwList & ELinkedList) {
-        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, ELong);
-    }
-    else if (dwList & EVector) {
-        if (VectorGetType(dwList ^ EVector, 0) == ELong) {
-            bResult = VectorInsertAt(dwList ^ EVector, nPosition, pValue);
-        }
-    }
-    if (!bResult || dwList & EVector) {
-        free(pValue);
-    }
-    return bResult;
-}
 
-BOOL InsertDoubleAt(DWORD dwList, size_t nPosition, double nValue) {
-    void* pValue = malloc(sizeof(double));
-    *(double*)pValue = nValue;
-    BOOL bResult = FALSE;
-    if (dwList & ELinkedList) {
-        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, EDouble);
-    }
-    else if (dwList & EVector) {
-        if (VectorGetType(dwList ^ EVector, 0) == EDouble) {
-            bResult = VectorInsertAt(dwList ^ EVector, nPosition, pValue);
-        }
-    }
-    if (!bResult || dwList & EVector) {
-        free(pValue);
-    }
-    return bResult;
-}
+InsertFunction(int, Int, EInt)
+InsertFunction(long, Long, ELong)
+InsertFunction(double, Double, EDouble)
+InsertFunction(float, Float, EFloat)
 
-BOOL InsertFloatAt(DWORD dwList, size_t nPosition, float nValue) {
-    void* pValue = malloc(sizeof(float));
-    *(float*)pValue = nValue;
-    BOOL bResult = FALSE;
-    if (dwList & ELinkedList) {
-        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, EFloat);
+BOOL InsertStringAt(HANDLE hCollection, size_t nPosition, wchar_t* szValue) {
+    AbstractCollection* collection = (AbstractCollection*)hCollection;
+    if(collection == NULL) {
+        return FALSE;
     }
-    else if (dwList & EVector) {
-        if (VectorGetType(dwList ^ EVector, 0) == EFloat) {
-            bResult = VectorInsertAt(dwList ^ EVector, nPosition, pValue);
-        }
-    }
-    if (!bResult || dwList & EVector) {
-        free(pValue);
-    }
-    return bResult;
-}
-
-BOOL InsertStringAt(DWORD dwList, size_t nPosition, wchar_t* szValue) {
     size_t nSize = wcslen(szValue) + 1;
     void* pValue = malloc(nSize * sizeof(wchar_t));
-#ifdef WIN32
+#ifdef _MSC_VER
     wcscpy_s(pValue, nSize, szValue);
+#else
+    wcscpy(pValue, szValue);
 #endif
     BOOL bResult = FALSE;
-    if (dwList & ELinkedList) {
-        bResult = ListInsertAt(dwList ^ ELinkedList, nPosition, pValue, EString);
+    if (collection->collectionType == ELinkedList) {
+        bResult = ListInsertAt(collection, nPosition, pValue, EString);
     }
-    else {
-        if (VectorGetType(dwList ^ EVector, 0) == EString) {
-            bResult = VectorInsertAt(dwList ^ EVector, nPosition, pValue);
+    else if(collection->collectionType == EVector){
+        if (VectorGetType(collection, 0) == EString) {
+            bResult = VectorInsertAt(collection, nPosition, pValue);
         }
     }
-    if (!bResult || dwList & EVector) {
+    if (!bResult || collection->collectionType == EVector) {
         free(pValue);
     }
     return bResult;
 }
 
-EType GetType(DWORD dwList, size_t nPosition) {
-    if (dwList & ELinkedList) {
-        return ListGetType(dwList ^ ELinkedList, nPosition);
+EType GetType(HANDLE hCollection, size_t nPosition) {
+    AbstractCollection* collection = (AbstractCollection*)hCollection;
+    if(collection == NULL) {
+        return EUnknown;
     }
-    else if (dwList & EVector) {
-        return VectorGetType(dwList ^ EVector, nPosition);
+    if (collection->collectionType == ELinkedList) {
+        return ListGetType(collection, nPosition);
+    }
+    else if (collection->collectionType == EVector) {
+        return VectorGetType(collection, nPosition);
     }
     return EUnknown;
 }
 
-BOOL SetDestroyFunction(DWORD dwList, Destructor destructor) {
-    if (dwList & ELinkedList) {
-        return ListSetDestroyFunc(dwList ^ ELinkedList, destructor);
+BOOL SetDestroyFunction(HANDLE hCollection, Destructor destructor) {
+    AbstractCollection* collection = (AbstractCollection*)hCollection;
+    if(collection == NULL) {
+        return EUnknown;
     }
-    else if (dwList & EVector) {
-        return VectorSetDestroyFunc(dwList ^ EVector, destructor);
+    if (collection->collectionType == ELinkedList) {
+        return ListSetDestroyFunc(collection, destructor);
+    }
+    else if (collection->collectionType == EVector) {
+        return VectorSetDestroyFunc(collection, destructor);
     }
     return FALSE;
 }
 
 void FreeCollections() {
-    FreeList();
-    FreeVectors();
     FreeUnusedStructs();
 }

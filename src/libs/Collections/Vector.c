@@ -4,6 +4,8 @@
 #include "stdlib.h"
 #include "CollectionUtils.h"
 #include "Collection.h"
+#include "wchar.h"
+#include <malloc.h>
 
 typedef struct Vector {
     ECollection collectionType;
@@ -18,11 +20,12 @@ typedef struct Vector {
 static size_t nDefaultCapacity = 10;
 
 HANDLE VectorCreate(EType eType, size_t nElementSize) {
-    Vector* newVector = malloc(sizeof(Vector*));
+    Vector* newVector = malloc(sizeof(Vector));
     newVector->collectionType = EVector;
     newVector->nCapacity = nDefaultCapacity;
     newVector->eVectorType = eType;
     newVector->nVectorSize = 0;
+    newVector->pDestructor = NULL;
     switch (eType) {
     case EInt:
         newVector->pElementsMemory = malloc(nDefaultCapacity * sizeof(int));
@@ -86,15 +89,28 @@ BOOL VectorAddElement(HANDLE hVector, void* pElement) {
             wchar_t* szLine = ((wchar_t**)vector->pElementsMemory)[vector->nVectorSize];
             szLine = malloc((wcslen(pElement) + 1) * sizeof(wchar_t));
             if (szLine != NULL) {
+#ifdef _MSC_VER
                 wcscpy_s(szLine, wcslen(pElement) + 1, pElement);
+#else
+                wcscpy(szLine, pElement);
+#endif
                 ((wchar_t**)vector->pElementsMemory)[vector->nVectorSize] = szLine;
             }
             vector->nVectorSize++;
         }
-        wchar_t* szLine = ((wchar_t**)vector->pElementsMemory)[vector->nVectorSize - 1];
         break;
     default:
-        memcpy_s((char*)vector->pElementsMemory + vector->nVectorSize * vector->nElemSize, vector->nCapacity * vector->nElemSize, pElement, vector->nElemSize);
+#ifdef _MSC_VER
+        memcpy_s((char*)vector->pElementsMemory + vector->nVectorSize * vector->nElemSize,
+                 vector->nCapacity * vector->nElemSize,
+                 pElement,
+                 vector->nElemSize);
+#else
+        memcpy((char*)vector->pElementsMemory + vector->nVectorSize * vector->nElemSize,
+               pElement,
+               vector->nElemSize);
+#endif
+        vector->nVectorSize++;
     }
     return TRUE;
 }
@@ -113,8 +129,10 @@ void* VectorGetAt(HANDLE hVector, size_t nPosition) {
         return (void*)&((float*)vector->pElementsMemory)[nPosition];
     case EDouble:
         return (void*)&((double*)vector->pElementsMemory)[nPosition];
-    case EString:
-        return (void*)(((wchar_t**)vector->pElementsMemory)[nPosition]);
+    case EString: {
+        wchar_t *szLine = (wchar_t *) (((wchar_t **) vector->pElementsMemory)[nPosition]);
+        return szLine;
+    }
     default:
         return (void*)((char*)vector->pElementsMemory + nPosition * vector->nElemSize);
     }
@@ -138,10 +156,16 @@ BOOL VectorRemoveAt(HANDLE hVector, size_t nPosition) {
         }
     }
     // Windows don't want to deal with raw void*, pathetic
+#ifdef _MSC_VER
     memmove_s((char*)vector->pElementsMemory + nPosition * vector->nElemSize,
         vector->nCapacity * vector->nElemSize,
         (char*)vector->pElementsMemory + (nPosition + 1) * vector->nElemSize,
         (vector->nVectorSize - nPosition - 1) * vector->nElemSize);
+#else
+    memmove((char*)vector->pElementsMemory + nPosition * vector->nElemSize,
+              (char*)vector->pElementsMemory + (nPosition + 1) * vector->nElemSize,
+              (vector->nVectorSize - nPosition - 1) * vector->nElemSize);
+#endif
     vector->nVectorSize--;
     return TRUE;
 }
@@ -186,22 +210,39 @@ BOOL VectorSet(HANDLE hVector, size_t nPosition, void* pValue) {
     case EDouble:
         ((double*)vector->pElementsMemory)[nPosition] = *(double*)pValue;
         break;
-    case EString:
-        wchar_t* szLine = ((wchar_t**)vector->pElementsMemory)[nPosition];
+    case EString: {
+        wchar_t *szLine = ((wchar_t **) vector->pElementsMemory)[nPosition];
         if (szLine != NULL) {
             free(szLine);
         }
         szLine = malloc((wcslen(pValue) + 1) * sizeof(wchar_t));
         if (szLine != NULL) {
+#ifdef _MSC_VER
             wcscpy_s(szLine, (wcslen(pValue) + 1), pValue);
+#else
+            wcscpy(szLine, pValue);
+#endif
         }
-    default:
-        void* pElement = (void*)((char*)vector->pElementsMemory + nPosition * vector->nElemSize);
-        if(vector->pDestructor != NULL) {
+        ((wchar_t **) vector->pElementsMemory)[nPosition] = szLine;
+        break;
+    }
+    default: {
+        void *pElement = (void *) ((char *) vector->pElementsMemory + nPosition * vector->nElemSize);
+        if (vector->pDestructor != NULL) {
             vector->pDestructor(pElement);
         }
-        memset((char*)vector->pElementsMemory + nPosition * vector->nElemSize, 0, vector->nElemSize);
-        memcpy_s((char*)vector->pElementsMemory + nPosition * vector->nElemSize, vector->nElemSize, pValue, vector->nElemSize);
+        memset((char *) vector->pElementsMemory + nPosition * vector->nElemSize, 0, vector->nElemSize);
+#ifdef _MSC_VER
+        memcpy_s((char*)vector->pElementsMemory + nPosition * vector->nElemSize,
+                 vector->nElemSize,
+                 pValue,
+                 vector->nElemSize);
+#else
+        memcpy((char *) vector->pElementsMemory + nPosition * vector->nElemSize,
+               pValue,
+               vector->nElemSize);
+#endif
+    }
     }
     return TRUE;
 }
@@ -222,12 +263,57 @@ BOOL VectorInsertAt(HANDLE hVector, size_t nPosition, void* pValue) {
             vector->pElementsMemory = tempMem;
         }
     }
+#ifdef _MSC_VER
     memmove_s((char*)vector->pElementsMemory + (nPosition + 1) * vector->nElemSize,
         vector->nCapacity * vector->nElemSize,
         (char*)vector->pElementsMemory + nPosition * vector->nElemSize,
         (vector->nVectorSize - nPosition) * vector->nElemSize);
+#else
+    memmove((char*)vector->pElementsMemory + (nPosition + 1) * vector->nElemSize,
+            (char*)vector->pElementsMemory + nPosition * vector->nElemSize,
+            (vector->nVectorSize - nPosition) * vector->nElemSize);
+#endif
     vector->nVectorSize++;
-    return VectorSet(hVector, nPosition, pValue);
+    switch (vector->eVectorType) {
+        case EInt:
+            ((int*)vector->pElementsMemory)[nPosition] = *(int*)pValue;
+            break;
+        case ELong:
+            ((long*)vector->pElementsMemory)[nPosition] = *(long*)pValue;
+            break;
+        case EFloat:
+            ((float*)vector->pElementsMemory)[nPosition] = *(float*)pValue;
+            break;
+        case EDouble:
+            ((double*)vector->pElementsMemory)[nPosition] = *(double*)pValue;
+            break;
+        case EString: {
+            wchar_t *szLine = malloc((wcslen(pValue) + 1) * sizeof(wchar_t));
+            if (szLine != NULL) {
+#ifdef _MSC_VER
+                wcscpy_s(szLine, (wcslen(pValue) + 1), pValue);
+#else
+                wcscpy(szLine, pValue);
+#endif
+            }
+            ((wchar_t **) vector->pElementsMemory)[nPosition] = szLine;
+            break;
+        }
+        default: {
+            memset((char *) vector->pElementsMemory + nPosition * vector->nElemSize, 0, vector->nElemSize);
+#ifdef _MSC_VER
+            memcpy_s((char*)vector->pElementsMemory + nPosition * vector->nElemSize,
+                 vector->nElemSize,
+                 pValue,
+                 vector->nElemSize);
+#else
+            memcpy((char *) vector->pElementsMemory + nPosition * vector->nElemSize,
+                   pValue,
+                   vector->nElemSize);
+#endif
+        }
+    }
+    return TRUE;
 }
 
 EType VectorGetType(HANDLE hVector, size_t nPosition) {
