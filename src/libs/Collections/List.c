@@ -12,6 +12,7 @@ typedef struct _ListNode {
 } ListNode;
 
 typedef struct _List {
+    ECollection collectionType;
     ListNode* root;
     size_t size;
     Destructor destructor;
@@ -28,6 +29,7 @@ HANDLE ListCreate() {
     list->size = 0;
     list->destructor = NULL;
     list->oneType = FALSE;
+    list->collectionType = ELinkedList;
     return list;
 }
 
@@ -38,10 +40,14 @@ BOOL ListAddElement(HANDLE hList, void* pElement, EType eType) {
     }
     ListNode* pRoot = list->root;
     if (list->size == 0) {
+        ListNode* node = malloc(sizeof(ListNode));
+        list->root = node;
+        pRoot = list->root;
         if (pElement != NULL) {
             pRoot->pValue = pElement;
             pRoot->valueType = eType;
             pRoot->pNext = NULL;
+            pRoot->destructor = NULL;
         }
         else {
             return FALSE;

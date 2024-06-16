@@ -65,5 +65,12 @@ target_include_directories(string PRIVATE ${COLLECTIONS_SRC_DIR})
 target_include_directories(string PUBLIC ${SHARED_DIR})
 
 add_executable(tetris ${TETRIS_SRC})
-target_link_libraries(tetris PRIVATE collections PRIVATE string)
-target_include_directories(tetris PRIVATE ${COLLECTIONS_SRC_DIR} PUBLIC ${SHARED_DIR} PRIVATE ${STRING_SRC_DIR})
+target_link_libraries(tetris
+        PRIVATE collections
+        PRIVATE string
+)
+target_include_directories(tetris
+        PRIVATE ${COLLECTIONS_SRC_DIR}
+        PUBLIC ${SHARED_DIR}
+        PRIVATE ${STRING_SRC_DIR}
+)

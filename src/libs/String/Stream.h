@@ -1,13 +1,9 @@
 #pragma once
 #include "StringLib.h"
 
-typedef int (*GetCharFuncPtr) (void* parm);
-typedef size_t(*ReadFuncPtr) (void* buff, size_t elemSize, size_t nelem, void* parm);
-
 struct _Stream {
     String buff;		/* Buffer for over-reads */
     void* parm;		/* The stream handle for core stream */
-    ReadFuncPtr readFnPtr;	/* fread compatible fnptr for core stream */
     int isEOF;			/* track file's EOF state */
     int maxBuffSz;
 };
