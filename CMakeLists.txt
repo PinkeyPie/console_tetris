@@ -42,8 +42,8 @@ set(STRING_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/libs/String)
 set(TETRIS_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/src/game)
 
 SRC_FILES(COLLECTIONS_SRC ${COLLECTIONS_SRC_DIR})
-SRC_FILES(TETRIS_SRC ${TETRIS_SRC_DIR})
 SRC_FILES(STRING_SRC ${STRING_SRC_DIR})
+SRC_FILES(TETRIS_SRC ${TETRIS_SRC_DIR})
 
 if (WIN32)
     HEADER_FILES(COLLECTIONS_HEADERS ${COLLECTIONS_SRC_DIR})
@@ -53,24 +53,24 @@ else ()
     add_library(collections SHARED ${COLLECTIONS_SRC})
 endif ()
 target_include_directories(collections PUBLIC ${SHARED_DIR})
-if(WIN32)
+
+if (WIN32)
     HEADER_FILES(STRING_HEADERS ${STRING_SRC_DIR})
     add_library(string SHARED ${STRING_SRC} ${STRING_HEADERS})
     target_compile_definitions(string PRIVATE STRING_LIBRARY)
-else()
+else ()
     add_library(string SHARED ${STRING_SRC})
-endif()
-target_link_libraries(string PRIVATE ${collections})
-target_include_directories(string PRIVATE ${COLLECTIONS_SRC_DIR})
-target_include_directories(string PUBLIC ${SHARED_DIR})
+endif ()
+target_link_libraries(string PRIVATE collections)
+target_include_directories(string PUBLIC ${SHARED_DIR} PRIVATE ${COLLECTIONS_SRC_DIR})
 
 add_executable(tetris ${TETRIS_SRC})
-target_link_libraries(tetris
-        PRIVATE collections
-        PRIVATE string
-)
-target_include_directories(tetris
-        PRIVATE ${COLLECTIONS_SRC_DIR}
-        PUBLIC ${SHARED_DIR}
-        PRIVATE ${STRING_SRC_DIR}
-)
+target_link_libraries(tetris PRIVATE collections PRIVATE string)
+target_include_directories(tetris PRIVATE ${COLLECTIONS_SRC_DIR} PRIVATE ${STRING_SRC_DIR} PUBLIC ${SHARED_DIR})
+if (NOT WIN32)
+    find_package(X11)
+    if(${X11_FOUND})
+        target_link_libraries(tetris PRIVATE ${X11_LIBRARIES})
+        target_include_directories(tetris PRIVATE ${X11_INCLUDE_DIR})
+    endif ()
+endif ()

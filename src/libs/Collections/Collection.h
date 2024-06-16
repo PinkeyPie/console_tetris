@@ -25,7 +25,7 @@ COLLECTION_EXPORT double GetDoubleAt(HANDLE hCollection, size_t nPosition);
 COLLECTION_EXPORT BOOL RemoveAt(HANDLE hCollection, size_t nPosition);
 COLLECTION_EXPORT BOOL DeleteList(HANDLE hCollection);
 COLLECTION_EXPORT size_t Size(HANDLE hCollection);
-COLLECTION_EXPORT BOOL Set(HANDLE hCollection, size_t nPosition, void* pValue, EType eType);
+COLLECTION_EXPORT BOOL SetAt(HANDLE hCollection, size_t nPosition, void* pValue, EType eType);
 COLLECTION_EXPORT BOOL SetInt(HANDLE hCollection, size_t nPosition, int nValue);
 COLLECTION_EXPORT BOOL SetLong(HANDLE hCollection, size_t nPosition, long nValue);
 COLLECTION_EXPORT BOOL SetDouble(HANDLE hCollection, size_t nPosition, double nValue);
