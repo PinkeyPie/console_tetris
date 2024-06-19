@@ -654,15 +654,15 @@ BOOL EqualsCString(ConstString string, const char* cStr) {
  *  1 is returned, if they are unequal regardless of case 0 is returned and
  *  if there is a detectable error STR_ERR is returned.
  */
-int EqualsCStrCaseless(ConstString string, const char* cStr) {
+BOOL EqualsCStrCaseless(ConstString string, const char* cStr) {
     int i;
     if (string == NULL || cStr == NULL || string->Data == NULL || string->StrLen < 0) {
-        return STR_ERR;
+        return FALSE;
     }
     for (i = 0; i < string->StrLen; i++) {
         if (cStr[i] == '\0' || (string->Data[i] != (unsigned char)cStr[i] &&
         tolower(string->Data[i]) != (unsigned char)tolower(cStr[i]))) {
-            return STR_OK;
+            return FALSE;
         }
     }
     return cStr[i] == '\0';

@@ -32,20 +32,16 @@ int main(int argc, char* argv[]) {
 
     pthread_t graphical_thread;
     pthread_t x11Thread;
-    pthread_t gameThread;
     int status = pthread_create(&graphical_thread, NULL, GraphicalThread, NULL) |
-                 pthread_create(&x11Thread, NULL, X11EventHandler, NULL) |
-                 pthread_create(&gameThread, NULL, GameLoop, NULL);
+                 pthread_create(&x11Thread, NULL, X11EventHandler, NULL);
     if(status != 0) {
         printf("Error: cant initialize graphical loop");
         return -1;
     }
 
-    while (True) { // Game logic loop
-        usleep(10000);
-    }
+    GameLoop(NULL);
     pthread_join(graphical_thread, NULL);
+    pthread_join(x11Thread, NULL);
     DisposeScreen();
-    FreeCollections();
     return 0;
 }

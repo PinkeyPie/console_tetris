@@ -1,5 +1,7 @@
 #pragma once
 #include "types.h"
+#include "StringLib.h"
+#include "TetrisFigure.h"
 
 typedef enum _MessageType {
     EDrawMessage,
@@ -15,7 +17,9 @@ typedef enum EDrawTarget {
     ERemoveRow,
     EMenu,
     EScore,
-    ERemoveLine
+    ERemoveLine,
+    EPreview, // Figure preview window
+    EEndGame
 } EDrawTarget;
 
 typedef struct _FigureMove {
@@ -23,10 +27,64 @@ typedef struct _FigureMove {
     TetrisFigure* oldPosition;
 } FigureMove;
 
+typedef enum _MoveType {
+    ELeftMove,
+    ERightMove,
+    EUpMove,
+    EDownMove,
+    ENone
+} MoveType;
+
+typedef enum _MenuEntryType{
+    EFolder,
+    EAction,
+    ENumericValue,
+    ESelectionList,
+    ESlider
+} MenuEntryType;
+
+typedef void (*EntryChangeProc)(DWORD params);
+
+typedef struct _MenuEntry {
+    MenuEntryType type;
+    String name;
+    EntryChangeProc proc;
+    BOOL isActive;
+} MenuEntry;
+
+typedef struct _SelectorEntry {
+    MenuEntryType type;
+    String name;
+    EntryChangeProc proc;
+    BOOL isActive;
+    HANDLE selectionEntries;
+    int currentSelected;
+} SelectorEntry;
+
+typedef struct _SliderEntry {
+    MenuEntryType type;
+    String name;
+    EntryChangeProc proc;
+    BOOL isActive;
+    int minValue;
+    int maxValue;
+    int currentValue;
+    int stepValue;
+} SliderEntry;
+
+typedef struct _Menu {
+    int id;
+    int currentSelection;
+    HANDLE MenuEntries;
+    EntryChangeProc proc;
+} Menu;
+
 typedef struct _DrawMessage {
     EDrawTarget drawTarget;
     union {
         FigureMove figureMove;
+        HANDLE nextFigure;
+        HANDLE menuMessage;
         COORD windowSize;
         DWORD rowNumber;
         DWORD score;
@@ -37,9 +95,10 @@ typedef enum EControlTarget{
     EKeyPress,
     EFocus,
     EMotion,
-    EButtonPress
+    EButtonPress,
+    EReadyPrint,
+    ECloseWindow
 } EControlTarget;
-
 
 typedef struct _ControlMessage {
     EControlTarget controlTarget;

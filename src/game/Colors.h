@@ -4,6 +4,20 @@
 #include "X11/Xutil.h"
 #include "X11/Xos.h"
 
-void GetColor(char * szColorName) {
+typedef enum Color {
+    ERed,
+    EGreen,
+    EBlue,
+    EYellow,
+    EPurple,
+    EViolet,
+    EWhite,
+    EGrey,
+    EOrange,
+    EBlack,
+    EDarkGrey
+} Color;
 
-}
+void InitColors();
+XColor GetColor(Color color);
+XColor GetColorFromHex(int hexValue);

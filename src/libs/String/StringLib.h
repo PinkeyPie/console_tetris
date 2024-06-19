@@ -84,37 +84,3 @@ struct _TagString {
 #define Data(String)                            (DataOffset (String, 0))
 #define CharElse(String, Pos, Else)             ((((unsigned)(Pos)) < (unsigned)Length(String)) ? ((String)->Data[(Pos)]) : (Else))
 #define Char(String, Pos)                       CharElse ((String), (Pos), '\0')
-
-/* Static constant string initialization macro */
-#define StaticStringMaxLen(CString,MaxLen)      {(m), (int) sizeof(q)-1, (unsigned char *) ("" q "")}
-#if defined(_MSC_VER)
-# define StaticString(CString)           StaticStringMaxLen(CString,-32)
-#endif
-#ifndef StaticString
-# define StaticString(CString)           StaticStringMaxLen(CString,-__LINE__)
-#endif
-
-/* Static constant block parameter pair */
-#define StaticStringByte(CString) ((void *)("" CString "")), ((int) sizeof(CString)-1)
-
-#define ConcatStatic(bytes,str)         ((ConcatBytes)((bytes), StaticStringByte(str)))
-#define FromStatic(str)                 ((BytesToString)(StaticStringByte(str)))
-#define AssignStatic(bytes,str)         ((AssignBytes)((bytes), StaticStringByte(str)))
-#define InsertStatic(b,p,s,f)           ((InsertBytes)((b), (p), StaticStringByte(s), (f)))
-#define JoinStatic(b,s)                 ((JoinBulk)((b), StaticStringByte(s)))
-#define EqualsStatic(b,s)               ((EqualsBytes)((b), StaticStringByte(s)))
-#define StemEqualsStatic(b,s)           ((StemEqualsBytes)((b), StaticStringByte(s)))
-#define EqualsCaselessStatic(b,s)       ((EqualsCaseLessBlk)((b), StaticStringByte(s)))
-#define StemEqualsCaselessStatic(b,s)   ((StemEqualsCaseLessBlk)((b), StaticStringByte(s)))
-
-/* Reference building macros */
-#define StringFromCStr(t,s) {                                               \
-    (t).data = (unsigned char *) (s);                                       \
-    (t).slen = ((t).data) ? ((int) (strlen) ((char *)(t).data)) : 0;        \
-    (t).mlen = -1;                                                          \
-}
-#define StringFromBytes(t,s,l) {                \
-    (t).Data = (unsigned char *) (s);           \
-    (t).StrLen = l;                             \
-    (t).MaxLen = -1;                            \
-}
