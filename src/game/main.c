@@ -25,6 +25,7 @@ void printArray(TwoDim* array) {
 }
 
 int main(int argc, char* argv[]) {
+    XInitThreads();
     if (!InitScreen(argc, argv)) {
         printf("Error: cant initialize screen");
         return -1;
@@ -32,6 +33,7 @@ int main(int argc, char* argv[]) {
 
     pthread_t graphical_thread;
     pthread_t x11Thread;
+
     int status = pthread_create(&graphical_thread, NULL, GraphicalThread, NULL) |
                  pthread_create(&x11Thread, NULL, X11EventHandler, NULL);
     if(status != 0) {

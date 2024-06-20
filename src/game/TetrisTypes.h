@@ -16,10 +16,13 @@ typedef enum EDrawTarget {
     EFieldRedraw,
     ERemoveRow,
     EMenu,
+    EUserName,
     EScore,
+    EScoreList,
     ERemoveLine,
     EPreview, // Figure preview window
-    EEndGame
+    EEndGame,
+    EExitGame
 } EDrawTarget;
 
 typedef struct _FigureMove {
@@ -79,6 +82,11 @@ typedef struct _Menu {
     EntryChangeProc proc;
 } Menu;
 
+typedef struct _ScoreEntry {
+    char* szName;
+    int score;
+} ScoreEntry;
+
 typedef struct _DrawMessage {
     EDrawTarget drawTarget;
     union {
@@ -88,6 +96,8 @@ typedef struct _DrawMessage {
         COORD windowSize;
         DWORD rowNumber;
         DWORD score;
+        HANDLE scoresList;
+        String username;
     };
 } DrawMessage;
 
@@ -106,6 +116,7 @@ typedef struct _ControlMessage {
         struct _InputData{
             DWORD keycode;
             COORD mouseCoord;
+            char* keystring;
         } InputData;
         BOOL inFocus;
     };

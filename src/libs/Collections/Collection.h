@@ -31,7 +31,7 @@ COLLECTION_EXPORT BOOL SetLong(HANDLE hCollection, size_t nPosition, long nValue
 COLLECTION_EXPORT BOOL SetDouble(HANDLE hCollection, size_t nPosition, double nValue);
 COLLECTION_EXPORT BOOL SetFloat(HANDLE hCollection, size_t nPosition, float nValue);
 COLLECTION_EXPORT BOOL SetString(HANDLE hCollection, size_t nPosition, wchar_t* nValue);
-COLLECTION_EXPORT BOOL InsertAt(HANDLE hCollection, size_t nPosition, void* pValue, EType eType);
+COLLECTION_EXPORT BOOL InsertAt(HANDLE hCollection, size_t nPosition, void* pValue, size_t elemSize, EType eType);
 COLLECTION_EXPORT BOOL InsertIntAt(HANDLE hCollection, size_t nPosition, int nValue);
 COLLECTION_EXPORT BOOL InsertLongAt(HANDLE hCollection, size_t nPosition, long nValue);
 COLLECTION_EXPORT BOOL InsertDoubleAt(HANDLE hCollection, size_t nPosition, double nValue);

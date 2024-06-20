@@ -173,7 +173,6 @@ int ConcatCh(String string, char ch) {
     Alloc(string, dstLen + 1);
     string->Data[dstLen] = (unsigned char)ch;
     string->Data[dstLen + 1] = (unsigned char)'\0';
-    string->StrLen++;
     return STR_OK;
 }
 

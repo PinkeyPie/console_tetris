@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include "GameLogic.h"
 #include "types.h"
 #include "Draw.h"
@@ -8,19 +9,30 @@
 #include "malloc.h"
 #include "TwoDimArray.h"
 #include "Settings.h"
+#include "wchar.h"
+#include "stdarg.h"
 
 #define GAME_FPS 16600
-#define ONE_SECOND 400*1000
+#define ONE_SECOND 900*1000
 #define FIELD_WIDTH 10
 #define FIELD_HEIGHT 20
+#define SCORES_FILE "scores.txt"
 
 typedef enum _GameState {
     EMainMenu = 0,
     EGame,
     ESettings,
     EScores,
+    ENameInput,
     EExit
 } GameState;
+
+typedef enum _CollisionType {
+    EBottomCollision,
+    ELeftBorderCollision,
+    ERightBorderCollision,
+    ECurrentPosition
+} CollisionType;
 
 static int baseScore = 100;
 static int currentScore = 0;
@@ -39,12 +51,10 @@ static GameState currentMenuState = 1;
 static pthread_t tickThread;
 static BOOL TickEnabled = FALSE;
 static BOOL exitGame = FALSE;
+static String userName = NULL;
+static const useconds_t sleepTime = ONE_SECOND;
+static unsigned difficultLevel = 1;
 
-BOOL GetEndGame() {
-    return exitGame;
-}
-
-useconds_t sleepTime = ONE_SECOND;
 
 void* TickLoop(void*) {
     TickEnabled = TRUE;
@@ -52,18 +62,15 @@ void* TickLoop(void*) {
         GameMessage tickMessage;
         tickMessage.type = ETickMessage;
         PutControlMessage(&tickMessage);
-        usleep(sleepTime);
+        usleep((sleepTime - 9000 * difficultLevel + 100 * 1000));
     }
     TickEnabled = FALSE;
     pthread_exit(NULL);
 }
 
-typedef enum _CollisionType {
-    EBottomCollision,
-    ELeftBorderCollision,
-    ERightBorderCollision,
-    ECurrentPosition
-} CollisionType;
+BOOL GetEndGame() {
+    return exitGame;
+}
 
 BOOL CheckCollisions(CollisionType type) {
     BOOL bCollide = FALSE;
@@ -168,6 +175,7 @@ void ProcessFigure() {
 //        printf("GameThread: coords %d - %d",drawMessage.figureMove.figure->coords.X, drawMessage.figureMove.figure->coords.Y);
         BOOL bBottomCollide = CheckCollisions(EBottomCollision);
         if(bBottomCollide) {
+//        if(TRUE) {
             for(int i = 0; i < Size(pFigure->hCoordsList); i++) {
                 COORD* coords = (COORD*)GetAt(pFigure->hCoordsList, i);
                 COORD figureCoords = {pFigure->coords.X + coords->X, pFigure->coords.Y + coords->Y};
@@ -186,6 +194,10 @@ void ProcessFigure() {
                     PutDrawMessage(&message);
                     scoreMultiplier++;
                 }
+                difficultLevel += scoreMultiplier;
+                if(difficultLevel > 99) {
+                    difficultLevel = 99;
+                }
                 currentScore += baseScore * scoreMultiplier;
                 DrawMessage scoreChange;
                 scoreChange.drawTarget = EScore;
@@ -193,7 +205,13 @@ void ProcessFigure() {
                 PutDrawMessage(&scoreChange);
             }
             DeleteList(hTetrisLines);
-            if(pFigure->coords.Y <= 2) {
+            if(pFigure->coords.Y <= 2) { // End game
+//            if(TRUE) {
+                DrawMessage message;
+                message.drawTarget = EEndGame;
+                PutDrawMessage(&message);
+                currentState = ENameInput;
+                userName = FromCString("");
                 bEndGame = TRUE;
                 FreeFigure(hNextFigure);
                 hNextFigure = NULL;
@@ -318,8 +336,78 @@ void StartGame(DWORD Param) {
     }
 }
 
-void ShowScores(DWORD Param) {
+#define BLOCK_LEN 128
 
+BOOL IncreaseSize(char** buffer, int curLen) {
+    int curBlocks = curLen / BLOCK_LEN;
+    char* tempMem = realloc((*buffer), (curBlocks + 1) * BLOCK_LEN * sizeof(char));
+    if(tempMem != NULL) {
+        *buffer = tempMem;
+        free(tempMem);
+        return TRUE;
+    } else {
+        return FALSE;
+    }
+}
+
+void ScoreEntryDestroy(void* entry) {
+    ScoreEntry* scoreEntry = (ScoreEntry*)entry;
+    if(scoreEntry != NULL) {
+        if (scoreEntry->szName != NULL) {
+            free(scoreEntry->szName);
+        }
+    }
+}
+
+HANDLE LoadScores() {
+    FILE* fd = fopen(SCORES_FILE, "r");
+    HANDLE hScoresList = NULL;
+    if(fd != NULL) {
+        char *buffer = malloc(BLOCK_LEN * sizeof(char));
+        buffer[0] = '\0';
+        int i = 0;
+        hScoresList = CreateList();
+        SetDestroyFunction(hScoresList, ScoreEntryDestroy);
+
+        wchar_t ch;
+        do {
+            ch = fgetc(fd);
+            buffer[i] = (char) ch;
+            buffer[i + 1] = '\0';
+            if (i == BLOCK_LEN - 2) {
+                IncreaseSize(&buffer, i);
+            }
+            if ((ch == '\n' || ch == EOF) && strlen(buffer) > 1) {
+                char *szName, *szStrNum;
+                szName = strtok(buffer, "=");
+                szStrNum = strtok(NULL, "=");
+                int score = (int) strtol(szStrNum, &szStrNum, 10);
+                char* szEntryName = malloc((strlen(szName) + 1) * sizeof(char));
+                strcpy(szEntryName, szName);
+                ScoreEntry entry = {szEntryName, score};
+                AddElement(hScoresList, &entry, sizeof(ScoreEntry));
+                free(buffer);
+                buffer = malloc(BLOCK_LEN * sizeof(char));
+                buffer[0]='\0';
+                i = 0;
+                continue;
+            }
+            i++;
+        } while (ch != EOF);
+        free(buffer);
+        fclose(fd);
+    }
+
+    return hScoresList;
+}
+
+void ShowScores(DWORD Param) {
+    HANDLE hScores = LoadScores();
+    DrawMessage message;
+    message.drawTarget = EScoreList;
+    message.scoresList = hScores;
+    currentState = EScores;
+    PutDrawMessage(&message);
 }
 
 void ChangeSettingsSelection(DWORD Param) {
@@ -348,7 +436,19 @@ void ExitGame(DWORD Param) {
 }
 
 void ChangeDifficulty(DWORD Param) {
-
+    switch (Param) {
+        case 0:
+            difficultLevel = 1;
+            break;
+        case 1:
+            difficultLevel = 30;
+            break;
+        case 2:
+            difficultLevel = 60;
+            break;
+        default:
+            printf("Something wrong");
+    }
 }
 
 void ChangeVolume(DWORD Param) {
@@ -386,6 +486,57 @@ void CreateSettingsMenu() {
     AddSelectorValue(turnVolume, "on");
     AddSelectorValue(turnVolume, "off");
     AddSelectorEntry(SettingsMenu, turnVolume, TurnVolume);
+}
+
+void SaveUserScore() {
+    HANDLE hScores = LoadScores();
+    SetDestroyFunction(hScores, ScoreEntryDestroy);
+    if(userName->StrLen == 0) {
+        Destroy(userName);
+        userName = FromCString("user");
+    }
+    char* szUserName = StringToCString(userName);
+    BOOL bFound;
+    int insertIdx = (int)Size(hScores);
+    int removeIdx = -1;
+    for(int i = 0; i < Size(hScores); i++) {
+        ScoreEntry* entry = (ScoreEntry*) GetAt(hScores, i);
+        if(entry->score < currentScore && !bFound) {
+            insertIdx = i;
+            bFound = TRUE;
+        }
+        if(strcmp(entry->szName, szUserName) == 0) {
+            removeIdx = i;
+        }
+    }
+    if(insertIdx != 10) {
+        ScoreEntry entry = {szUserName, currentScore};
+        if(insertIdx == Size(hScores)) {
+            AddElement(hScores, &entry, sizeof(ScoreEntry));
+        } else {
+            InsertAt(hScores, insertIdx, &entry, sizeof(ScoreEntry), EStruct);
+        }
+    }
+    if(removeIdx != -1) {
+        RemoveAt(hScores, removeIdx);
+    }
+    if(Size(hScores) == 11) {
+        RemoveAt(hScores, 10);
+    }
+    FILE* fd = fopen(SCORES_FILE, "w");
+    if(fd != NULL) {
+        for(int i = 0; i < Size(hScores); i++) {
+            ScoreEntry* entry = (ScoreEntry*) GetAt(hScores, i);
+            char szLine[1000];
+            sprintf(szLine, "%s=%d\n", entry->szName, entry->score);
+            fputs(szLine, fd);
+        }
+        fclose(fd);
+    }
+    DeleteList(hScores);
+    Destroy(userName);
+    userName = NULL;
+    StartGame(0);
 }
 
 void* GameLoop(void*) {
@@ -431,6 +582,18 @@ void* GameLoop(void*) {
                                         MenuEntryChange(MainMenu, ELeftMove);
                                     } else if(currentState == ESettings) {
                                         MenuEntryChange(SettingsMenu, ELeftMove);
+                                    } else if(currentState == ENameInput) {
+                                        char *keyChar = controlMessage.InputData.keystring;
+                                        if (strlen(keyChar) == 1 && currentState == ENameInput) {
+                                            char ch = keyChar[0];
+                                            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+                                                ConcatCh(userName, ch);
+                                                DrawMessage message;
+                                                message.drawTarget = EUserName;
+                                                message.username = userName;
+                                                PutDrawMessage(&message);
+                                            }
+                                        }
                                     }
                                     break;
                                 case 40://d
@@ -441,6 +604,18 @@ void* GameLoop(void*) {
                                         MenuEntryChange(MainMenu, ERightMove);
                                     } else if(currentState == ESettings) {
                                         MenuEntryChange(SettingsMenu, ERightMove);
+                                    } else if(currentState == ENameInput) {
+                                        char *keyChar = controlMessage.InputData.keystring;
+                                        if (strlen(keyChar) == 1 && currentState == ENameInput) {
+                                            char ch = keyChar[0];
+                                            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+                                                ConcatCh(userName, ch);
+                                                DrawMessage message;
+                                                message.drawTarget = EUserName;
+                                                message.username = userName;
+                                                PutDrawMessage(&message);
+                                            }
+                                        }
                                     }
                                     break;
                                 case 39: //s
@@ -451,6 +626,18 @@ void* GameLoop(void*) {
                                         MenuEntryChange(MainMenu, EDownMove);
                                     } else if(currentState == ESettings) {
                                         MenuEntryChange(SettingsMenu, EDownMove);
+                                    } else if(currentState == ENameInput) {
+                                        char *keyChar = controlMessage.InputData.keystring;
+                                        if (strlen(keyChar) == 1 && currentState == ENameInput) {
+                                            char ch = keyChar[0];
+                                            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+                                                ConcatCh(userName, ch);
+                                                DrawMessage message;
+                                                message.drawTarget = EUserName;
+                                                message.username = userName;
+                                                PutDrawMessage(&message);
+                                            }
+                                        }
                                     }
                                     break;
                                 case 25: //w
@@ -461,6 +648,18 @@ void* GameLoop(void*) {
                                         MenuEntryChange(MainMenu, EUpMove);
                                     } else if(currentState == ESettings) {
                                         MenuEntryChange(SettingsMenu, EUpMove);
+                                    } else if(currentState == ENameInput) {
+                                        char *keyChar = controlMessage.InputData.keystring;
+                                        if (strlen(keyChar) == 1 && currentState == ENameInput) {
+                                            char ch = keyChar[0];
+                                            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+                                                ConcatCh(userName, ch);
+                                                DrawMessage message;
+                                                message.drawTarget = EUserName;
+                                                message.username = userName;
+                                                PutDrawMessage(&message);
+                                            }
+                                        }
                                     }
                                     break;
                                 case 9:
@@ -479,11 +678,30 @@ void* GameLoop(void*) {
                                         MenuEntryChange(MainMenu, ENone);
                                     } else if(currentState == ESettings) {
                                         MenuEntryChange(SettingsMenu, ENone);
+                                    } else if(currentState == ENameInput) {
+                                        SaveUserScore();
+                                    } else if(currentState == EScores) {
+                                        currentState = EMainMenu;
+                                        ShowMenuMessage(0);
                                     }
                                     break;
-                                default:
-                                    printf("code: %d", key);
+                                default: {
+                                    if(currentState == ENameInput) {
+                                        char *keyChar = controlMessage.InputData.keystring;
+                                        if (strlen(keyChar) == 1 && currentState == ENameInput) {
+                                            char ch = keyChar[0];
+                                            if ((ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+                                                ConcatCh(userName, ch);
+                                                DrawMessage message;
+                                                message.drawTarget = EUserName;
+                                                message.username = userName;
+                                                PutDrawMessage(&message);
+                                            }
+                                        }
+                                    }
+                                    printf("code: %d\n", key);
                                     break;
+                                }
                             }
                             break;
                         }
@@ -516,7 +734,7 @@ void* GameLoop(void*) {
         }
     }
     DrawMessage endGameMessage;
-    endGameMessage.drawTarget = EEndGame;
+    endGameMessage.drawTarget = EExitGame;
     PutDrawMessage(&endGameMessage);
     pthread_join(tickThread, NULL);
     DeleteList(hMessageQueue);

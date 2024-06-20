@@ -35,8 +35,12 @@ HANDLE ListCreate() {
 
 BOOL ListAddElement(HANDLE hList, void* pElement, EType eType) {
     List* list = (List*)hList;
-    if(pElement == NULL || list->oneType && list->root->valueType != eType) {
-        return FALSE;
+    if(pElement == NULL || list->oneType) {
+        if(!(list->oneType && list->root == NULL)) {
+            if(list->root->valueType != eType) {
+                return FALSE;
+            }
+        }
     }
     ListNode* pRoot = list->root;
     if (list->size == 0) {
@@ -289,7 +293,7 @@ EType ListGetType(HANDLE hList, size_t nPosition) {
 }
 
 BOOL ListSetDestroyFunc(HANDLE hList, Destructor destructor) {
-    List* list = (List*)list;
+    List* list = (List*)hList;
     if(destructor == NULL) {
         return FALSE;
     }

@@ -16,6 +16,10 @@
 
 
 
+#define MENU_WIDTH 400
+#define MENU_HEIGHT 600
+#define MENU_DEAD_ZONE 20
+#define MENU_VALID_DRAW_ZONE (MENU_WIDTH - MENU_DEAD_ZONE * 2)
 
 #define WINDOW_LEFT 0
 #define WINDOW_TOP 0
@@ -123,8 +127,8 @@ Bool InitScreen(int argc, char *argv[]) {
                                  WINDOW_LEFT, WINDOW_TOP, WIDTH, HEIGHT, BORDER_WIDTH,
                                  WhitePixel(display, ScreenNumber),
                                  BlackPixel(display, ScreenNumber));
-//    SetWindowManagerHints(display, PRG_CLASS, argv, argc, window, WINDOW_LEFT, WINDOW_TOP, WIDTH, HEIGHT,
-//                          WIDTH_MIN, HEIGHT_MIN, TITLE, ICON_TITLE, 0);
+    SetWindowManagerHints(display, PRG_CLASS, argv, argc, window, WINDOW_LEFT, WINDOW_TOP, WIDTH, HEIGHT,
+                          (SQUARE_WIDTH + BORDER_SIZE) * 20, (SQUARE_HEIGHT + BORDER_SIZE) * 23, TITLE, ICON_TITLE, 0);
 
     currentScreenHeight = HEIGHT;
     currentScreenWidth = WIDTH;
@@ -233,6 +237,7 @@ void *X11EventHandler(void *args) {
                 msg.InputData.keycode = report.xkey.keycode;
                 msg.InputData.mouseCoord.X = report.xkey.x;
                 msg.InputData.mouseCoord.Y = report.xkey.y;
+                msg.InputData.keystring = XKeysymToString(XKeycodeToKeysym(display,report.xkey.keycode, 0));
                 gameMessage.messageInfo.controlMessage = msg;
                 PutControlMessage(&gameMessage);
                 break;
@@ -303,6 +308,21 @@ void *X11EventHandler(void *args) {
     pthread_exit(NULL);
 }
 
+void CalculateShiftCentre(int* width, int* height)
+{
+    int totalWidth = 10 * (SQUARE_WIDTH * (1) +
+                           BORDER_SIZE * (1));
+    int totalHeight = 20 * (SQUARE_HEIGHT * (1) +
+                            BORDER_SIZE * (1));
+
+    int widthShift = (currentScreenWidth - totalWidth) / 2;
+    int heightShift = (currentScreenHeight - totalHeight) / 2;
+    widthShift = (widthShift > 0) ? widthShift : 0;
+    heightShift = (heightShift > 0) ? heightShift : 0;
+    *width = widthShift;
+    *height = heightShift;
+}
+
 void DrawLoop() {
     gc = XCreateGC(display, window, 0, NULL);
 
@@ -371,6 +391,164 @@ void DrawLoop() {
                     RedrawScreen();
                     break;
                 }
+                case EEndGame: {
+                    BeginDraw();
+                    int width = currentScreenWidth / 2 - MENU_WIDTH / 2;
+                    int height = currentScreenHeight / 2 - MENU_WIDTH / 2;
+                    XColor blackColor = GetColor(EBlack);
+                    XSetForeground(display, gc, blackColor.pixel);
+                    XFillRectangle(display, window, gc, 0, 0, currentScreenWidth, currentScreenHeight);
+                    XColor menuBackgroundColor = GetColor(EGrey);
+                    XColor whiteColor = GetColor(EWhite);
+
+                    XSetForeground(display, gc, menuBackgroundColor.pixel);
+                    XFillRectangle(display, window, gc, width, height, MENU_WIDTH, MENU_WIDTH);
+                    XSetForeground(display, gc, whiteColor.pixel);
+                    XDrawRectangle(display, window, gc, width, height, MENU_WIDTH, MENU_WIDTH);
+
+                    const char * fontname = "-misc-fixed-medium-r-normal--20-200-75-75-c-100-koi8-r"; // -*-helvetica-*-r-*-*-14-*-*-*-*-*-*-*
+                    XFontStruct* font = XLoadQueryFont(display, fontname);
+                    char number[128];
+                    sprintf(number, "Your score: %d", scoreLoc); //
+
+                    height += MENU_WIDTH / 2 - font->per_char->ascent * 6 - font->per_char->ascent / 2 - MENU_DEAD_ZONE /2 - MENU_DEAD_ZONE - 6;
+
+                    height += font->per_char->ascent * 4;
+                    XDrawString(display, window, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen("End of game!") * font->per_char->width))/ 2), height, "End of game!", strlen("End of game!"));
+                    height += font->per_char->ascent * 3;
+                    XDrawString(display, window, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width))/ 2), height, number, strlen(number));
+                    height += font->per_char->ascent * 3;
+                    XDrawString(display, window, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen("Start typing your name or...") * font->per_char->width))/ 2), height, "Start typing your name or...", strlen("Start typing your name or..."));
+
+                    int top = height + MENU_DEAD_ZONE ;
+                    int left = width + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
+                    int bottom = top + MENU_DEAD_ZONE * 2;
+                    int right = left + MENU_WIDTH - MENU_DEAD_ZONE * 2;
+
+                    XColor colorMenuItemSelected = GetColor(EOrange);
+                    XSetForeground(display, gc, colorMenuItemSelected.pixel);
+                    XFillRectangle(display, window, gc,left , top,
+                                   right - left, bottom - top);
+                    XSetForeground(display, gc, whiteColor.pixel);
+                    XDrawRectangle(display, window, gc,left , top,
+                                   right - left, bottom - top);
+                    // TEXT
+                    int temp1 = font->per_char->ascent;
+                    int temp2 = font->per_char->descent;
+                    XDrawString(display, window, gc, left + ((MENU_VALID_DRAW_ZONE - (strlen("Start new game") * font->per_char->width))/ 2),
+                                top + ((40 - font->per_char->ascent)), "Start new game", strlen("Start new game"));
+
+                    XFreeFont(display, font);
+                    EndDraw();
+
+                    break;
+                }
+                case EUserName: {
+                    String username = msg->messageInfo.drawMessage.username;
+                    BeginDraw();
+                    int width = currentScreenWidth / 2 - MENU_WIDTH / 2;
+                    int height = currentScreenHeight / 2 - MENU_WIDTH / 2;
+                    XColor blackColor = GetColor(EBlack);
+                    XSetForeground(display, gc, blackColor.pixel);
+                    XFillRectangle(display, window, gc, 0, 0, currentScreenWidth, currentScreenHeight);
+                    XColor menuBackgroundColor = GetColor(EGrey);
+                    XColor whiteColor = GetColor(EWhite);
+
+                    XSetForeground(display, gc, menuBackgroundColor.pixel);
+                    XFillRectangle(display, window, gc, width, height, MENU_WIDTH, MENU_WIDTH);
+                    XSetForeground(display, gc, whiteColor.pixel);
+                    XDrawRectangle(display, window, gc, width, height, MENU_WIDTH, MENU_WIDTH);
+
+                    const char * fontname = "-misc-fixed-medium-r-normal--20-200-75-75-c-100-koi8-r"; // -*-helvetica-*-r-*-*-14-*-*-*-*-*-*-*
+                    XFontStruct* font = XLoadQueryFont(display, fontname);
+                    char number[128];
+                    sprintf(number, "Enter your name: %s", StringToCString(username)); //
+                    height += MENU_WIDTH / 2;
+                    height -= font->per_char->ascent * 2;
+                    XDrawString(display, window, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width))/ 2), height, number, strlen(number));
+
+                    int top = height + MENU_DEAD_ZONE ;
+                    int left = width + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
+                    int bottom = top + MENU_DEAD_ZONE * 2;
+                    int right = left + MENU_WIDTH - MENU_DEAD_ZONE * 2;
+
+                    XColor colorMenuItemSelected = GetColor(EOrange);
+                    XSetForeground(display, gc, colorMenuItemSelected.pixel);
+                    XFillRectangle(display, window, gc,left , top,
+                                   right - left, bottom - top);
+                    XSetForeground(display, gc, whiteColor.pixel);
+                    XDrawRectangle(display, window, gc,left , top,
+                                   right - left, bottom - top);
+
+                    XDrawString(display, window, gc, left + ((MENU_VALID_DRAW_ZONE - (strlen("New game") * font->per_char->width))/ 2),
+                                top + ((40 - font->per_char->ascent)), "New game", strlen("New game"));
+
+                    XFreeFont(display, font);
+                    EndDraw();
+                    break;
+                }
+                case EScoreList: {
+                    HANDLE scores = msg->messageInfo.drawMessage.scoresList;
+                    BeginDraw();
+                    int width = currentScreenWidth / 2 - MENU_WIDTH / 2;
+                    int height = currentScreenHeight / 2 - MENU_HEIGHT / 2;
+
+                    XColor blackColor = GetColor(EBlack);
+                    XSetForeground(display, gc, blackColor.pixel);
+                    XFillRectangle(display, window, gc, 0, 0, currentScreenWidth, currentScreenHeight);
+                    XColor menuBackgroundColor = GetColor(EGrey);
+                    XColor whiteColor = GetColor(EWhite);
+
+                    XSetForeground(display, gc, menuBackgroundColor.pixel);
+                    XFillRectangle(display, window, gc, width, height, MENU_WIDTH, MENU_HEIGHT);
+                    XSetForeground(display, gc, whiteColor.pixel);
+                    XDrawRectangle(display, window, gc, width, height, MENU_WIDTH, MENU_HEIGHT);
+                    const char * fontname = "-misc-fixed-medium-r-normal--20-200-75-75-c-100-koi8-r"; // -*-helvetica-*-r-*-*-14-*-*-*-*-*-*-*
+                    XFontStruct* font = XLoadQueryFont(display, fontname);
+                    int counter = 1;
+                    for (int i = 0; i < Size(scores); i++)
+                    {
+                        ScoreEntry* entry = (ScoreEntry*) GetAt(scores, i);
+                        entry->szName;
+                        entry->score;
+
+                        char number[128];
+                        sprintf(number, "%d: %15s - %10d", counter, entry->szName, entry->score); //
+                        height += font->per_char->ascent * 4;
+                        XDrawString(display, window, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width))/ 2), height, number, strlen(number));
+                        counter++;
+                    }
+                    while (counter < 11)
+                    {
+                        char number[128];
+                        sprintf(number, "%d: %15s - %10s", counter, "", ""); //
+                        height += font->per_char->ascent * 4;
+                        XDrawString(display, window, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width))/ 2), height, number, strlen(number));
+                        counter++;
+                    }
+
+                    int top = height + MENU_DEAD_ZONE ;
+                    int left = width + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
+                    int bottom = top + MENU_DEAD_ZONE * 2;
+                    int right = left + MENU_WIDTH - MENU_DEAD_ZONE * 2;
+
+                    XColor colorMenuItemSelected = GetColor(EOrange);
+                    XSetForeground(display, gc, colorMenuItemSelected.pixel);
+                    XFillRectangle(display, window, gc,left , top,
+                                   right - left, bottom - top);
+                    XSetForeground(display, gc, whiteColor.pixel);
+                    XDrawRectangle(display, window, gc,left , top,
+                                   right - left, bottom - top);
+                    // TEXT
+                    int temp1 = font->per_char->ascent;
+                    int temp2 = font->per_char->descent;
+                    XDrawString(display, window, gc, left + ((MENU_VALID_DRAW_ZONE - (strlen("Back to menu") * font->per_char->width))/ 2),
+                                top + ((40 - font->per_char->ascent)), "Back to menu", strlen("Back to menu"));
+
+                    XFreeFont(display, font);
+                    EndDraw();
+                    break;
+                }
                 case EFieldRedraw: {
                     size_t height = ((TwoDim *) GameField)->height;
                     for (size_t i = 0; i < height; i++) {
@@ -408,7 +586,7 @@ void DrawLoop() {
                     RedrawScreen();
                 }
 
-                case EEndGame: {
+                case EExitGame: {
                     break;
                 }
             }
@@ -582,6 +760,7 @@ void RedrawScreen() {
             }
         }
     }
+    XFreeFont(display, font);
     EndDraw();
 }
 
@@ -593,10 +772,7 @@ void GetMenuSizes(SMALL_RECT* sizes) {
     sizes->Bottom = sizes->Top + 100;
 }
 
-#define MENU_WIDTH 400
-#define MENU_HEIGHT 600
-#define MENU_DEAD_ZONE 20
-#define MENU_VALID_DRAW_ZONE (MENU_WIDTH - MENU_DEAD_ZONE * 2)
+
 
 void DrawMenu(Menu* menuMessage) {
     BeginDraw();
@@ -720,7 +896,7 @@ void DrawMenu(Menu* menuMessage) {
             //            StringToCString(string), string->StrLen);
         }
     }
-
+    XFreeFont(display, font);
     EndDraw();
 }
 

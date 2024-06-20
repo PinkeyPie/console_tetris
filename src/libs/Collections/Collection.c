@@ -283,16 +283,26 @@ BOOL SetString(HANDLE hCollection, size_t nPosition, wchar_t* szValue) {
     return bIsSet;
 }
 
-BOOL InsertAt(HANDLE hCollection, size_t nPosition, void* pValue, EType eType) {
+BOOL InsertAt(HANDLE hCollection, size_t nPosition, void* pValue, size_t elemSize, EType eType) {
     AbstractCollection* collection = (AbstractCollection*)hCollection;
+    void* pCollectionElement = malloc(elemSize);
+#ifdef _MSC_VER
+    memcpy_s(pCollectionElement, nElemSize, pElement, nElemSize);
+#else
+    memcpy(pCollectionElement, pValue, elemSize);
+#endif
     if(collection == NULL) {
         return FALSE;
     }
+    BOOL bStatus = FALSE;
     if (collection->collectionType == ELinkedList) {
-        return ListInsertAt(collection, nPosition, pValue, eType);
+        bStatus = ListInsertAt(collection, nPosition, pCollectionElement, eType);
     }
     else if (collection->collectionType == EVector) {
-        return VectorInsertAt(collection, nPosition, pValue);
+        bStatus = VectorInsertAt(collection, nPosition, pCollectionElement);
+    }
+    if(!bStatus || collection->collectionType == EVector) {
+        free(pCollectionElement);
     }
     return FALSE;
 }
