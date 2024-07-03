@@ -12,8 +12,6 @@ void DrawLoop();
 void BeginDraw();
 void EndDraw();
 void DrawRect(SMALL_RECT* coord, Color color, Bool filled);
-void ClearRect(SMALL_RECT* coord);
-void ClearScreen();
 void RedrawScreen(); // By the fact it turns to redraw game field
 void DrawMenu(Menu* menuMessage);
 void PutDrawMessage(HANDLE hMessage);
