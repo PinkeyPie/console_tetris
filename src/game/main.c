@@ -1,3 +1,4 @@
+#include <malloc.h>
 #include "Draw.h"
 #include "GameLogic.h"
 #include "Collection.h"
@@ -24,8 +25,38 @@ void printArray(TwoDim* array) {
     }
 }
 
+typedef struct myStruct {
+    char* name;
+    char* surname;
+    int height;
+} myStruct;
+
+myStruct* createStruct(const char* n, const char* s, int h) {
+    if(h > 300) {
+        h = 0;
+    }
+    myStruct aStruct;
+    aStruct.name = (char*)malloc((strlen(n)+1)*sizeof(char));
+    strcpy(aStruct.name, n);
+    aStruct.surname = (char*) malloc((strlen(s) + 1)*sizeof(char));
+    strcpy(aStruct.surname, s);
+    aStruct.height = h;
+    return &aStruct;
+}
+
+void setMyStruct(myStruct** aStruct) {
+    myStruct local;
+    local.name = "Alyosha";
+    local.surname = "Viktorovich";
+    local.height = 182;
+    *aStruct = &local;
+}
+
 int main(int argc, char* argv[]) {
     XInitThreads();
+    myStruct* str = NULL;
+    setMyStruct(&str);
+
     if (!InitScreen(argc, argv)) {
         printf("Error: cant initialize screen");
         return -1;

@@ -18,6 +18,9 @@
 #define FIELD_HEIGHT 20
 #define SCORES_FILE "scores.txt"
 
+#define IS_POSITIVE(value) (value[0] & 0x80) != 0
+
+
 typedef enum _GameState {
     EMainMenu = 0,
     EGame,
@@ -161,7 +164,6 @@ void ProcessFigure() {
         GameMessage msg;
         msg.type = EDrawMessage;
         msg.messageInfo.drawMessage = drawMessage;
-//        printf("GameThread new figure: coords %d - %d",figureCoords.X, figureCoords.Y);
         PutDrawMessage(&drawMessage);
 
         DrawMessage nextFigureChange;
