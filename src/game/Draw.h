@@ -9,13 +9,7 @@
 
 Bool InitScreen(int argc, char* argv[]);
 void DrawLoop();
-void BeginDraw();
-void EndDraw();
-void DrawRect(SMALL_RECT* coord, Color color, Bool filled);
-void RedrawScreen(); // By the fact it turns to redraw game field
-void DrawMenu(Menu* menuMessage);
-void PutDrawMessage(HANDLE hMessage);
-void ResizeScreen(int height, int width);
-void DisposeScreen();
 void* X11EventHandler(void*);
+void DisposeScreen();
+void PutDrawMessage(HANDLE hMessage);
 Display* GetDisplay();

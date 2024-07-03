@@ -42,6 +42,22 @@ typedef enum _GameState {
     EStateNameEnter
 } GameState;
 
+void BeginDraw();
+void EndDraw();
+void DrawRect(SMALL_RECT* coord, Color color, Bool filled);
+void RedrawScreen(); // By the fact it turns to redraw game field
+void DrawMenu(Menu* menuMessage);
+void ResizeScreen(int height, int width);
+void EndGameDraw();
+void UserNameDraw(GameMessage *msg);
+void ScoreListDraw(GameMessage *msg);
+void PlayFieldDraw();
+void FigureMoveLogic(GameMessage *msg);
+void DrawBaseMenuShape(int *width, int *height);
+void InitResources();
+void DeinitResources();
+void DrawMenuEntry(int top, int left, int bottom, int right, const char* string, Bool isActive, Bool isSelected);
+
 static const char *fontname = "-misc-fixed-medium-r-normal--20-200-75-75-c-100-koi8-r"; // -*-helvetica-*-r-*-*-14-*-*-*-*-*-*-*
 static XFontStruct *font;
 
@@ -70,29 +86,11 @@ static HANDLE GameField = NULL;
 static BOOL initialized = FALSE;
 
 static TetrisFigure *nextFigure = NULL;
-static int scoreLoc = 0;
+static DWORD scoreLoc = 0;
 int screenDepth;
 
 static int currentScreenWidth;
 static int currentScreenHeight;
-
-void EndGameDraw();
-
-void UserNameDraw(GameMessage *msg);
-
-void ScoreListDraw(GameMessage *msg);
-
-void PlayFieldDraw();
-
-void FigureMoveLogic(GameMessage *msg);
-
-void DrawBaseMenuShape(int *width, int *height);
-
-void InitResources();
-
-void DeinitResources();
-
-void DrawMenuEntry(int top, int left, int bottom, int right, const char* string, Bool isActive, Bool isSelected);
 
 static void SetWindowManagerHints(
         Display *dis,
@@ -362,7 +360,7 @@ void DrawLoop() {
                     scoreLoc = msg->messageInfo.drawMessage.score;
                     break;
                 case ERemoveLine: {
-                    int lineNum = msg->messageInfo.drawMessage.rowNumber;
+                    DWORD lineNum = msg->messageInfo.drawMessage.rowNumber;
                     if (lineNum < FIELD_HEIGHT) {
                         RemoveLine(GameField, lineNum);
                         RedrawScreen();
