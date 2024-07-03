@@ -5,12 +5,13 @@
 #include <X11/Xos.h>
 #include <stdio.h>
 #include "TetrisTypes.h"
+#include "Colors.h"
 
 Bool InitScreen(int argc, char* argv[]);
 void DrawLoop();
 void BeginDraw();
 void EndDraw();
-void DrawRect(SMALL_RECT* coord, XColor* color, Bool filled);
+void DrawRect(SMALL_RECT* coord, Color color, Bool filled);
 void ClearRect(SMALL_RECT* coord);
 void ClearScreen();
 void RedrawScreen(); // By the fact it turns to redraw game field

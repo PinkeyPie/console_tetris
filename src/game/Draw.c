@@ -14,8 +14,6 @@
 // TODO: Shading
 // TODO: Borderlands
 
-
-
 #define MENU_WIDTH 400
 #define MENU_HEIGHT 600
 #define MENU_DEAD_ZONE 20
@@ -27,38 +25,29 @@
 #define HEIGHT 900
 #define FIELD_WIDTH 10
 #define FIELD_HEIGHT 20
-#define WIDTH_MIN 50
-#define HEIGHT_MIN 50
 #define BORDER_WIDTH 5
-#define TITLE "Example window"
-#define ICON_TITLE "Example"
+#define TITLE "Tetris"
+#define ICON_TITLE "Tetris"
 #define PRG_CLASS "Example"
-
-// COLORS SECTION
-#define BACKGROUND_COLOR_R 10000
-#define BACKGROUND_COLOR_G 10000
-#define BACKGROUND_COLOR_B 10000
 
 #define SQUARE_WIDTH (30)
 #define SQUARE_HEIGHT (30)
 #define BORDER_SIZE (6)
 
-#define BORDER_COLOR_R (0)
-#define BORDER_COLOR_G (65535)
-#define BORDER_COLOR_B (0)
+typedef enum _GameState {
+    EStateGame,
+    EStateMenu,
+    EStateScore,
+    EStateEndGame,
+    EStateNameEnter
+} GameState;
+
+static const char *fontname = "-misc-fixed-medium-r-normal--20-200-75-75-c-100-koi8-r"; // -*-helvetica-*-r-*-*-14-*-*-*-*-*-*-*
+static XFontStruct *font;
 
 HANDLE hDrawQueue = NULL;
 pthread_mutex_t drawQueueMut;
 pthread_cond_t drawQueueCond;
-
-typedef enum _GameState
-{
- EStateGame,
- EStateMenu,
- EStateScore,
- EStateEndGame,
- EStateNameEnter
-}GameState;
 
 GameState state = EStateMenu;
 
@@ -68,20 +57,19 @@ static Pixmap buffer2;
 static Pixmap activeBuffer;
 static int currentPixmap = 0;
 
-static Menu* lastUsedMenu = NULL;
-static GameMessage* lastUsedScores = NULL;
-static GameMessage* lastUsedName = NULL;
+static Menu *lastUsedMenu = NULL;
+static GameMessage *lastUsedScores = NULL;
+static GameMessage *lastUsedName = NULL;
 
 static Display *display;
 static Window window;
 static GC gc;
 static Bool gcInited;
 static XEvent report;
-static XColor background_color;
 static HANDLE GameField = NULL;
 static BOOL initialized = FALSE;
 
-static TetrisFigure* nextFigure = NULL;
+static TetrisFigure *nextFigure = NULL;
 static int scoreLoc = 0;
 int screenDepth;
 
@@ -95,6 +83,10 @@ void UserNameDraw(GameMessage *msg);
 void ScoreListDraw(GameMessage *msg);
 
 void PlayFieldDraw();
+
+void FigureMoveLogic(GameMessage *msg);
+
+void DrawBaseMenuShape(int *width, int *height);
 
 static void SetWindowManagerHints(
         Display *dis,
@@ -162,24 +154,24 @@ Bool InitScreen(int argc, char *argv[]) {
 
     currentScreenHeight = HEIGHT;
     currentScreenWidth = WIDTH;
-    //XSelectInput(display, window, 0b111111111111111111111111); // | PointerMotionMask  | ButtonPressMask
-    XSelectInput(display, window, ExposureMask | KeyPressMask | ResizeRedirectMask | SubstructureNotifyMask | FocusChangeMask | VisibilityChangeMask);
+    XSelectInput(display, window,
+                 ExposureMask | KeyPressMask | ResizeRedirectMask | SubstructureNotifyMask | FocusChangeMask |
+                 VisibilityChangeMask);
     XMapWindow(display, window);
     gcInited = False;
     InitColors();
-    background_color = GetColor(EGrey);
     hDrawQueue = CreateList();
     GameField = CreateTwoDimArray(FIELD_HEIGHT, FIELD_WIDTH);
 
     return True;
 }
 
-void DrawBorder(XColor *border_color) {
+void DrawBorder(Color border_color) {
     SMALL_RECT rect_coords;
     int totalWidth = 10 * (SQUARE_WIDTH * (1) +
-            BORDER_SIZE * (1));
+                           BORDER_SIZE * (1));
     int totalHeight = 20 * (SQUARE_HEIGHT * (1) +
-            BORDER_SIZE * (1));
+                            BORDER_SIZE * (1));
 
     int widthShift = (currentScreenWidth - totalWidth) / 2;
     int heightShift = (currentScreenHeight - totalHeight) / 2;
@@ -196,22 +188,22 @@ void DrawBorder(XColor *border_color) {
     }
 }
 
-XColor GetFigureColor(EFigure figureType) {
+Color GetFigureColor(EFigure figureType) {
     switch (figureType) {
         case LFigure:
-            return GetColor(EBlue);
+            return EBlue;
         case TFigure:
-            return GetColor(ERed);
+            return ERed;
         case ZFigure:
-            return GetColor(EYellow);
+            return EYellow;
         case RectFigure:
-            return GetColor(EGreen);
+            return EGreen;
         case Stick:
-            return GetColor(EPurple);
+            return EPurple;
         case ZReversed:
-            return GetColor(EViolet);
+            return EViolet;
         case LReversed:
-            return GetColor(EOrange);
+            return EOrange;
     }
 }
 
@@ -236,7 +228,7 @@ void *X11EventHandler(void *args) {
                 msg.InputData.keycode = report.xkey.keycode;
                 msg.InputData.mouseCoord.X = report.xkey.x;
                 msg.InputData.mouseCoord.Y = report.xkey.y;
-                msg.InputData.keystring = XKeysymToString(XKeycodeToKeysym(display,report.xkey.keycode, 0));
+                msg.InputData.keystring = XKeysymToString(XKeycodeToKeysym(display, report.xkey.keycode, 0));
                 gameMessage.messageInfo.controlMessage = msg;
                 PutControlMessage(&gameMessage);
                 break;
@@ -251,7 +243,6 @@ void *X11EventHandler(void *args) {
                 break;
             }
             case MotionNotify: {
-//                printf("Motion\n");
                 GameMessage gameMessage;
                 gameMessage.type = EControlMessage;
                 ControlMessage msg;
@@ -263,7 +254,6 @@ void *X11EventHandler(void *args) {
                 break;
             }
             case FocusOut: {
-//                printf("Focus out\n");
                 GameMessage gameMessage;
                 gameMessage.type = EControlMessage;
                 ControlMessage msg;
@@ -294,12 +284,11 @@ void *X11EventHandler(void *args) {
                 gameMessage.messageInfo.controlMessage = message;
                 PutControlMessage(&gameMessage);
                 pthread_exit(NULL);
-                break;
             }
             default:
                 printf("Unhandled report type: %d\n", report.type);
         }
-        if(GetEndGame()) {
+        if (GetEndGame()) {
             break;
         }
     }
@@ -313,6 +302,8 @@ void DrawLoop() {
     buffer1 = XCreatePixmap(display, window, currentScreenWidth, currentScreenHeight, screenDepth);
     buffer2 = XCreatePixmap(display, window, currentScreenWidth, currentScreenHeight, screenDepth);
     activeBuffer = buffer1;
+    font = XLoadQueryFont(display, fontname);
+    XSetFont(display, gc, font->fid);
     while (True) {
         pthread_mutex_lock(&drawQueueMut);
         while (Size(hDrawQueue) == 0) {
@@ -353,30 +344,7 @@ void DrawLoop() {
                 }
                 case EFigureMove: {
                     state = EStateGame;
-                    TetrisFigure *oldPosition = msg->messageInfo.drawMessage.figureMove.oldPosition;
-                    TetrisFigure *newPosition = msg->messageInfo.drawMessage.figureMove.newPosition;
-                    for (int i = 0; i < Size(oldPosition->hCoordsList); i++) {
-                        COORD *coord = (COORD *) GetAt(oldPosition->hCoordsList, i);
-                        if (!(coord->Y + oldPosition->coords.Y >= 20 || coord->X + oldPosition->coords.X >= 10)) {
-                            Set(GameField, coord->X + oldPosition->coords.X, coord->Y + oldPosition->coords.Y, 0);
-                        } else {
-                            assert(1 == 0); // Coord out of range
-                        }
-                    }
-                    FreeFigure(oldPosition);
-                    assert(newPosition->coords.X >= 0 && newPosition->coords.X < 10 &&
-                           newPosition->coords.Y >= 0 && newPosition->coords.Y < 20);
-                    for (int i = 0; i < Size(newPosition->hCoordsList); i++) {
-                        COORD *coord = (COORD *) GetAt(newPosition->hCoordsList, i);
-                        if (!(coord->Y + newPosition->coords.Y >= 20 || coord->X + newPosition->coords.X >= 10)) {
-                            Set(GameField, coord->X + newPosition->coords.X, coord->Y + newPosition->coords.Y,
-                                newPosition->figureType);
-                        } else {
-                            assert(1 == 0); // Coord out of range
-                        }
-                    }
-                    FreeFigure(newPosition);
-                    RedrawScreen();
+                    FigureMoveLogic(msg);
                     break;
                 }
                 case EEndGame: {
@@ -431,15 +399,13 @@ void DrawLoop() {
                     }
                     break;
                 }
-                case EPreview:
-                {
+                case EPreview: {
                     if (nextFigure)
                         FreeFigure(nextFigure);
-                    TetrisFigure* fig = (TetrisFigure*)msg->messageInfo.drawMessage.nextFigure;
+                    TetrisFigure *fig = (TetrisFigure *) msg->messageInfo.drawMessage.nextFigure;
                     nextFigure = fig;
                     RedrawScreen();
                 }
-
                 case EExitGame: {
                     break;
                 }
@@ -454,6 +420,9 @@ void DrawLoop() {
     }
     XFreeGC(display, gc);
     XSync(display, 0);
+    XFreePixmap(display, buffer1);
+    XFreePixmap(display, buffer2);
+    XFreeFont(display, font);
     XDestroyWindow(display, window);
     XSync(display, 0);
     DeleteList(hDrawQueue);
@@ -461,168 +430,180 @@ void DrawLoop() {
     hDrawQueue = NULL;
     GameField = NULL;
     printf("Ending game\n");
-
     pthread_exit(NULL);
 }
+
+void FigureMoveLogic(GameMessage *msg) {
+    TetrisFigure *oldPosition = msg->messageInfo.drawMessage.figureMove.oldPosition;
+    TetrisFigure *newPosition = msg->messageInfo.drawMessage.figureMove.newPosition;
+    for (int i = 0; i < Size(oldPosition->hCoordsList); i++) {
+        COORD *coord = (COORD *) GetAt(oldPosition->hCoordsList, i);
+        if (!(coord->Y + oldPosition->coords.Y >= 20 || coord->X + oldPosition->coords.X >= 10)) {
+            Set(GameField, coord->X + oldPosition->coords.X, coord->Y + oldPosition->coords.Y, 0);
+        } else {
+            assert(1 == 0); // Coord out of range
+        }
+    }
+    FreeFigure(oldPosition);
+    assert(newPosition->coords.X >= 0 && newPosition->coords.X < 10 &&
+           newPosition->coords.Y >= 0 && newPosition->coords.Y < 20);
+    for (int i = 0; i < Size(newPosition->hCoordsList); i++) {
+        COORD *coord = (COORD *) GetAt(newPosition->hCoordsList, i);
+        if (!(coord->Y + newPosition->coords.Y >= 20 || coord->X + newPosition->coords.X >= 10)) {
+            Set(GameField, coord->X + newPosition->coords.X, coord->Y + newPosition->coords.Y,
+                newPosition->figureType);
+        } else {
+            assert(1 == 0); // Coord out of range
+        }
+    }
+    FreeFigure(newPosition);
+    RedrawScreen();
+}
+
 
 void ScoreListDraw(GameMessage *msg) {
     HANDLE scores = msg->messageInfo.drawMessage.scoresList;
     BeginDraw();
-    int width = currentScreenWidth / 2 - MENU_WIDTH / 2;
-    int height = currentScreenHeight / 2 - MENU_HEIGHT / 2;
+    int width;
+    int height;
+    DrawBaseMenuShape(&width, &height);
 
-    XColor blackColor = GetColor(EBlack);
-    XSetForeground(display, gc, blackColor.pixel);
-    XFillRectangle(display, activeBuffer, gc, 0, 0, currentScreenWidth, currentScreenHeight);
-    XColor menuBackgroundColor = GetColor(EGrey);
-    XColor whiteColor = GetColor(EWhite);
-
-    XSetForeground(display, gc, menuBackgroundColor.pixel);
-    XFillRectangle(display, activeBuffer, gc, width, height, MENU_WIDTH, MENU_HEIGHT);
-    XSetForeground(display, gc, whiteColor.pixel);
-    XDrawRectangle(display, activeBuffer, gc, width, height, MENU_WIDTH, MENU_HEIGHT);
-    const char * fontname = "-misc-fixed-medium-r-normal--20-200-75-75-c-100-koi8-r"; // -*-helvetica-*-r-*-*-14-*-*-*-*-*-*-*
-    XFontStruct* font = XLoadQueryFont(display, fontname);
     int counter = 1;
-    for (int i = 0; i < Size(scores); i++)
-    {
-        ScoreEntry* entry = (ScoreEntry*) GetAt(scores, i);
-        entry->szName;
-        entry->score;
+    for (int i = 0; i < Size(scores); i++) {
+        ScoreEntry *entry = (ScoreEntry *) GetAt(scores, i);
 
         char number[128];
         sprintf(number, "%d: %15s - %10d", counter, entry->szName, entry->score); //
         height += font->per_char->ascent * 4;
-        XDrawString(display, activeBuffer, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width))/ 2), height, number, strlen(number));
+        XDrawString(display, activeBuffer, gc,
+                    width + MENU_DEAD_ZONE + ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width)) / 2),
+                    height, number, strlen(number));
         counter++;
     }
-    while (counter < 11)
-    {
+    while (counter < 11) {
         char number[128];
         sprintf(number, "%d: %15s - %10s", counter, "", ""); //
         height += font->per_char->ascent * 4;
-        XDrawString(display, activeBuffer, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width))/ 2), height, number, strlen(number));
+        XDrawString(display, activeBuffer, gc,
+                    width + MENU_DEAD_ZONE + ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width)) / 2),
+                    height, number, strlen(number));
         counter++;
     }
 
-    int top = height + MENU_DEAD_ZONE ;
+    int top = height + MENU_DEAD_ZONE;
     int left = width + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
     int bottom = top + MENU_DEAD_ZONE * 2;
     int right = left + MENU_WIDTH - MENU_DEAD_ZONE * 2;
 
-    XColor colorMenuItemSelected = GetColor(EOrange);
-    XSetForeground(display, gc, colorMenuItemSelected.pixel);
-    XFillRectangle(display, activeBuffer, gc,left , top,
+    XSetForeground(display, gc, GetColor(EOrange).pixel);
+    XFillRectangle(display, activeBuffer, gc, left, top,
                    right - left, bottom - top);
-    XSetForeground(display, gc, whiteColor.pixel);
-    XDrawRectangle(display, activeBuffer, gc,left , top,
+    XSetForeground(display, gc, GetColor(EWhite).pixel);
+    XDrawRectangle(display, activeBuffer, gc, left, top,
                    right - left, bottom - top);
-    // TEXT
-    int temp1 = font->per_char->ascent;
-    int temp2 = font->per_char->descent;
-    XDrawString(display, activeBuffer, gc, left + ((MENU_VALID_DRAW_ZONE - (strlen("Back to menu") * font->per_char->width))/ 2),
+
+    XDrawString(display, activeBuffer, gc,
+                left + ((MENU_VALID_DRAW_ZONE - (strlen("Back to menu") * font->per_char->width)) / 2),
                 top + ((40 - font->per_char->ascent)), "Back to menu", strlen("Back to menu"));
 
-    XFreeFont(display, font);
     EndDraw();
+}
+
+void DrawBaseMenuShape(int *width, int *height) {
+    (*width) = currentScreenWidth / 2 - MENU_WIDTH / 2;
+    (*height) = currentScreenHeight / 2 - MENU_HEIGHT / 2;
+    XSetForeground(display, gc, GetColor(EBlack).pixel);
+    XFillRectangle(display, activeBuffer, gc, 0, 0, currentScreenWidth, currentScreenHeight);
+    XSetForeground(display, gc, GetColor(EDarkGrey).pixel);
+    XFillRectangle(display, activeBuffer, gc, (*width), (*height), MENU_WIDTH, MENU_HEIGHT);
+    XSetForeground(display, gc, GetColor(EWhite).pixel);
+    XDrawRectangle(display, activeBuffer, gc, (*width), (*height), MENU_WIDTH, MENU_HEIGHT);
 }
 
 void UserNameDraw(GameMessage *msg) {
     String username = msg->messageInfo.drawMessage.username;
     BeginDraw();
-    int width = currentScreenWidth / 2 - MENU_WIDTH / 2;
-    int height = currentScreenHeight / 2 - MENU_WIDTH / 2;
-    XColor blackColor = GetColor(EBlack);
-    XSetForeground(display, gc, blackColor.pixel);
-    XFillRectangle(display, activeBuffer, gc, 0, 0, currentScreenWidth, currentScreenHeight);
-    XColor menuBackgroundColor = GetColor(EGrey);
-    XColor whiteColor = GetColor(EWhite);
+    int width;
+    int height;
+    DrawBaseMenuShape(&width, &height);
 
-    XSetForeground(display, gc, menuBackgroundColor.pixel);
-    XFillRectangle(display, activeBuffer, gc, width, height, MENU_WIDTH, MENU_WIDTH);
-    XSetForeground(display, gc, whiteColor.pixel);
-    XDrawRectangle(display, activeBuffer, gc, width, height, MENU_WIDTH, MENU_WIDTH);
-
-    const char * fontname = "-misc-fixed-medium-r-normal--20-200-75-75-c-100-koi8-r"; // -*-helvetica-*-r-*-*-14-*-*-*-*-*-*-*
-    XFontStruct* font = XLoadQueryFont(display, fontname);
     char number[128];
     sprintf(number, "Enter your name: %s", StringToCString(username)); //
     height += MENU_WIDTH / 2;
     height -= font->per_char->ascent * 2;
-    XDrawString(display, activeBuffer, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width))/ 2), height, number, strlen(number));
+    XDrawString(display, activeBuffer, gc,
+                width + MENU_DEAD_ZONE + ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width)) / 2),
+                height, number, strlen(number));
 
-    int top = height + MENU_DEAD_ZONE ;
+    int top = height + MENU_DEAD_ZONE;
     int left = width + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
     int bottom = top + MENU_DEAD_ZONE * 2;
     int right = left + MENU_WIDTH - MENU_DEAD_ZONE * 2;
 
-    XColor colorMenuItemSelected = GetColor(EOrange);
-    XSetForeground(display, gc, colorMenuItemSelected.pixel);
-    XFillRectangle(display, activeBuffer, gc,left , top,
+    XSetForeground(display, gc, GetColor(EOrange).pixel);
+    XFillRectangle(display, activeBuffer, gc, left, top,
                    right - left, bottom - top);
-    XSetForeground(display, gc, whiteColor.pixel);
-    XDrawRectangle(display, activeBuffer, gc,left , top,
+    XSetForeground(display, gc, GetColor(EWhite).pixel);
+    XDrawRectangle(display, activeBuffer, gc, left, top,
                    right - left, bottom - top);
 
-    XDrawString(display, activeBuffer, gc, left + ((MENU_VALID_DRAW_ZONE - (strlen("New game") * font->per_char->width))/ 2),
+    XDrawString(display, activeBuffer, gc,
+                left + ((MENU_VALID_DRAW_ZONE - (strlen("New game") * font->per_char->width)) / 2),
                 top + ((40 - font->per_char->ascent)), "New game", strlen("New game"));
 
-    XFreeFont(display, font);
     EndDraw();
 }
 
 void EndGameDraw() {
     BeginDraw();
-    int width = currentScreenWidth / 2 - MENU_WIDTH / 2;
-    int height = currentScreenHeight / 2 - MENU_WIDTH / 2;
-    XColor blackColor = GetColor(EBlack);
-    XSetForeground(display, gc, blackColor.pixel);
+    XSetForeground(display, gc, GetColor(EBlack).pixel);
     XFillRectangle(display, activeBuffer, gc, 0, 0, currentScreenWidth, currentScreenHeight);
-    XColor menuBackgroundColor = GetColor(EGrey);
-    XColor whiteColor = GetColor(EWhite);
 
-    XSetForeground(display, gc, menuBackgroundColor.pixel);
-    XFillRectangle(display, activeBuffer, gc, width, height, MENU_WIDTH, MENU_WIDTH);
-    XSetForeground(display, gc, whiteColor.pixel);
-    XDrawRectangle(display, activeBuffer, gc, width, height, MENU_WIDTH, MENU_WIDTH);
+    int width;
+    int height;
+    DrawBaseMenuShape(&width, &height);
 
-    const char * fontname = "-misc-fixed-medium-r-normal--20-200-75-75-c-100-koi8-r"; // -*-helvetica-*-r-*-*-14-*-*-*-*-*-*-*
-    XFontStruct* font = XLoadQueryFont(display, fontname);
     char number[128];
     sprintf(number, "Your score: %d", scoreLoc); //
 
-    height += MENU_WIDTH / 2 - font->per_char->ascent * 6 - font->per_char->ascent / 2 - MENU_DEAD_ZONE /2 - MENU_DEAD_ZONE - 6;
+    height += MENU_WIDTH / 2 - font->per_char->ascent * 6 - font->per_char->ascent / 2 - MENU_DEAD_ZONE / 2 -
+              MENU_DEAD_ZONE - 6;
 
     height += font->per_char->ascent * 4;
-    XDrawString(display, activeBuffer, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen("End of game!") * font->per_char->width))/ 2), height, "End of game!", strlen("End of game!"));
+    XDrawString(display, activeBuffer, gc, width + MENU_DEAD_ZONE +
+                                           ((MENU_VALID_DRAW_ZONE - (strlen("End of game!") * font->per_char->width)) /
+                                            2), height, "End of game!", strlen("End of game!"));
     height += font->per_char->ascent * 3;
-    XDrawString(display, activeBuffer, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width))/ 2), height, number, strlen(number));
+    XDrawString(display, activeBuffer, gc,
+                width + MENU_DEAD_ZONE + ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width)) / 2),
+                height, number, strlen(number));
     height += font->per_char->ascent * 3;
-    XDrawString(display, activeBuffer, gc, width + MENU_DEAD_ZONE +  ((MENU_VALID_DRAW_ZONE - (strlen("Start typing your name or...") * font->per_char->width))/ 2), height, "Start typing your name or...", strlen("Start typing your name or..."));
+    XDrawString(display, activeBuffer, gc, width + MENU_DEAD_ZONE + ((MENU_VALID_DRAW_ZONE -
+                                                                      (strlen("Start typing your name or...") *
+                                                                       font->per_char->width)) / 2), height,
+                "Start typing your name or...", strlen("Start typing your name or..."));
 
-    int top = height + MENU_DEAD_ZONE ;
+    int top = height + MENU_DEAD_ZONE;
     int left = width + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
     int bottom = top + MENU_DEAD_ZONE * 2;
     int right = left + MENU_WIDTH - MENU_DEAD_ZONE * 2;
 
-    XColor colorMenuItemSelected = GetColor(EOrange);
-    XSetForeground(display, gc, colorMenuItemSelected.pixel);
-    XFillRectangle(display, activeBuffer, gc,left , top,
+    XSetForeground(display, gc, GetColor(EOrange).pixel);
+    XFillRectangle(display, activeBuffer, gc, left, top,
                    right - left, bottom - top);
-    XSetForeground(display, gc, whiteColor.pixel);
-    XDrawRectangle(display, activeBuffer, gc,left , top,
+    XSetForeground(display, gc, GetColor(EWhite).pixel);
+    XDrawRectangle(display, activeBuffer, gc, left, top,
                    right - left, bottom - top);
-    // TEXT
-    int temp1 = font->per_char->ascent;
-    int temp2 = font->per_char->descent;
-    XDrawString(display, activeBuffer, gc, left + ((MENU_VALID_DRAW_ZONE - (strlen("Start new game") * font->per_char->width))/ 2),
+
+    XDrawString(display, activeBuffer, gc,
+                left + ((MENU_VALID_DRAW_ZONE - (strlen("Start new game") * font->per_char->width)) / 2),
                 top + ((40 - font->per_char->ascent)), "Start new game", strlen("Start new game"));
-    XFreeFont(display, font);
+
     EndDraw();
 }
 
-void DrawRect(SMALL_RECT *coord, XColor *color, Bool filled) {
-    XSetForeground(display, gc, color->pixel);
+void DrawRect(SMALL_RECT *coord, Color color, Bool filled) {
+    XSetForeground(display, gc, GetColor(color).pixel);
 
     if (filled) {
         XFillRectangle(display, activeBuffer, gc, coord->Left, coord->Top,
@@ -633,20 +614,8 @@ void DrawRect(SMALL_RECT *coord, XColor *color, Bool filled) {
     }
 }
 
-void ClearScreen() {
-    XColor colorBackground = GetColorFromHex(0x000000);
-    SMALL_RECT screenRect = {};
-    screenRect.Left = 0;
-    screenRect.Top = 0;
-    screenRect.Right = currentScreenWidth;
-    screenRect.Bottom = currentScreenHeight;
-    DrawRect(&screenRect, &colorBackground, TRUE);
-}
-
 void RedrawScreen() {
-
-    switch (state)
-    {
+    switch (state) {
         case EStateMenu:
             if (lastUsedMenu != NULL)
                 DrawMenu(lastUsedMenu);
@@ -665,18 +634,15 @@ void RedrawScreen() {
         case EStateEndGame:
             EndGameDraw();
             break;
-
     }
 }
 
 void PlayFieldDraw() {
     BeginDraw();
-    XColor colorBack = GetColor(EBlack);
-    XSetForeground(display, gc, colorBack.pixel);
+    XSetForeground(display, gc, GetColor(EBlack).pixel);
     XFillRectangle(display, activeBuffer, gc, 0, 0,
                    currentScreenWidth, currentScreenHeight);
-    XColor colorBorder = GetColor(EWhite);
-    DrawBorder(&colorBorder);
+    DrawBorder(EWhite);
     int totalWidth = 10 * (SQUARE_WIDTH * (1) +
                            BORDER_SIZE * (1));
     int totalHeight = 20 * (SQUARE_HEIGHT * (1) +
@@ -687,30 +653,32 @@ void PlayFieldDraw() {
     widthShift = (widthShift > 0) ? widthShift : 0;
     heightShift = (heightShift > 0) ? heightShift : 0;
 
-    const char * fontname = "-misc-fixed-medium-r-normal--20-200-75-75-c-100-koi8-r"; // -*-helvetica-*-r-*-*-14-*-*-*-*-*-*-*
-    XFontStruct* font = XLoadQueryFont(display, fontname);
-    XSetForeground(display, gc, colorBack.pixel);
+    XSetForeground(display, gc, GetColor(EBlack).pixel);
     XFillRectangle(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH, heightShift,
-                   (SQUARE_WIDTH + BORDER_SIZE) * 4,(SQUARE_HEIGHT + BORDER_SIZE) * 4 + font->per_char->ascent * 2);
-    XSetForeground(display, gc, colorBorder.pixel);
+                   (SQUARE_WIDTH + BORDER_SIZE) * 4, (SQUARE_HEIGHT + BORDER_SIZE) * 4 + font->per_char->ascent * 2);
+    XSetForeground(display, gc, GetColor(EWhite).pixel);
     XDrawRectangle(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH, heightShift +
-                                                                                font->per_char->ascent * 2,(SQUARE_WIDTH + BORDER_SIZE) * 4,(SQUARE_HEIGHT + BORDER_SIZE) * 4);
+                                                                                      font->per_char->ascent * 2,
+                   (SQUARE_WIDTH + BORDER_SIZE) * 4, (SQUARE_HEIGHT + BORDER_SIZE) * 4);
     String scoreLabel = FromCString("Score:");
     String figureLabel = FromCString("Next figure:");
     char temp[64];
     sprintf(temp, "%d", scoreLoc);
     String scoreNumber = FromCString(temp);
-    XDrawString(display, activeBuffer, gc,  widthShift + totalWidth + SQUARE_WIDTH+ (((SQUARE_WIDTH + BORDER_SIZE) * 4
-                                                                                - (scoreNumber->StrLen * font->per_char->width))/ 2),
+    XDrawString(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4
+                                                                                      - (scoreNumber->StrLen *
+                                                                                         font->per_char->width)) / 2),
                 heightShift + font->per_char->ascent * 6 + (SQUARE_WIDTH + BORDER_SIZE) * 4,
                 StringToCString(scoreNumber), scoreNumber->StrLen);
 
-    XDrawString(display, activeBuffer, gc,  widthShift + totalWidth + SQUARE_WIDTH+ (((SQUARE_WIDTH + BORDER_SIZE) * 4
-                                                                                - (figureLabel->StrLen * font->per_char->width))/ 2),
+    XDrawString(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4
+                                                                                      - (figureLabel->StrLen *
+                                                                                         font->per_char->width)) / 2),
                 heightShift + (font->per_char->ascent + font->per_char->ascent / 2), StringToCString(figureLabel),
                 figureLabel->StrLen);
-    XDrawString(display, activeBuffer, gc,  widthShift + totalWidth + SQUARE_WIDTH+ (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
-                                                                                (scoreLabel->StrLen * font->per_char->width))/ 2),
+    XDrawString(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
+                                                                                      (scoreLabel->StrLen *
+                                                                                       font->per_char->width)) / 2),
                 heightShift + font->per_char->ascent * 4 + (SQUARE_WIDTH + BORDER_SIZE) * 4,
                 StringToCString(scoreLabel), scoreLabel->StrLen);
 
@@ -718,8 +686,7 @@ void PlayFieldDraw() {
     Destroy(scoreNumber);
     Destroy(figureLabel);
 
-    if (nextFigure)
-    {
+    if (nextFigure) {
         int maxCoordsHeight = 0;
         int maxCoordsWidth = 0;
 
@@ -736,171 +703,94 @@ void PlayFieldDraw() {
 
         for (int i = 0; i < Size(nextFigure->hCoordsList); i++) {
             COORD *coord = (COORD *) GetAt(nextFigure->hCoordsList, i);
-            XColor rect_color = GetFigureColor(nextFigure->figureType);
-            XSetForeground(display, gc, rect_color.pixel);
+            XSetForeground(display, gc, GetColor(GetFigureColor(nextFigure->figureType)).pixel);
             XFillRectangle(display, activeBuffer, gc, figureCentreWidth + widthShift + totalWidth + SQUARE_WIDTH +
-            BORDER_SIZE + (SQUARE_WIDTH + BORDER_SIZE) * coord->X,
+                                                      BORDER_SIZE + (SQUARE_WIDTH + BORDER_SIZE) * coord->X,
                            font->per_char->ascent * 2 + figureCentreHeight + heightShift + BORDER_SIZE / 2 +
                            (SQUARE_HEIGHT + BORDER_SIZE) * coord->Y, SQUARE_WIDTH, SQUARE_HEIGHT);
         }
-    }
-    else
-    {
+    } else {
         String noFigure = FromCString("??????");
-
-        XDrawString(display, activeBuffer, gc,  widthShift + totalWidth + SQUARE_WIDTH+ (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
-                                                                                    (noFigure->StrLen * font->per_char->width))/ 2),
-                    heightShift + font->per_char->ascent + (SQUARE_WIDTH + BORDER_SIZE) * 2,
-                    StringToCString(noFigure), noFigure->StrLen);
-        XDrawString(display, activeBuffer, gc,  widthShift + totalWidth + SQUARE_WIDTH+ (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
-                                                                                    (noFigure->StrLen * font->per_char->width))/ 2),
-                    heightShift + font->per_char->ascent * 2 + (SQUARE_WIDTH + BORDER_SIZE) * 2,
-                    StringToCString(noFigure), noFigure->StrLen);
-        XDrawString(display, activeBuffer, gc,  widthShift + totalWidth + SQUARE_WIDTH+ (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
-                                                                                    (noFigure->StrLen * font->per_char->width))/ 2),
-                    heightShift + font->per_char->ascent * 3 + (SQUARE_WIDTH + BORDER_SIZE) * 2,
-                    StringToCString(noFigure), noFigure->StrLen);
-        XDrawString(display, activeBuffer, gc,  widthShift + totalWidth + SQUARE_WIDTH+ (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
-                                                                                    (noFigure->StrLen * font->per_char->width))/ 2),
-                    heightShift + font->per_char->ascent * 4 + (SQUARE_WIDTH + BORDER_SIZE) * 2,
-                    StringToCString(noFigure), noFigure->StrLen);
-
+        for (int i = 0; i < 4; i++)
+        {
+            XDrawString(display, activeBuffer, gc,
+                        widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
+                                                                   (noFigure->StrLen * font->per_char->width)) / 2),
+                        heightShift + font->per_char->ascent * i + font->per_char->ascent + (SQUARE_WIDTH + BORDER_SIZE) * 2,
+                        StringToCString(noFigure), noFigure->StrLen);
+        }
         Destroy(noFigure);
-
     }
 
     for (int i = 0; i < 20; i++) {
         for (int j = 0; j < 10; j++) {
             SMALL_RECT rect_coords;
-            rect_coords.Top = i * (SQUARE_HEIGHT + BORDER_SIZE) + BORDER_SIZE / 2 + heightShift ;
+            rect_coords.Top = i * (SQUARE_HEIGHT + BORDER_SIZE) + BORDER_SIZE / 2 + heightShift;
             rect_coords.Left = j * (SQUARE_HEIGHT + BORDER_SIZE) + BORDER_SIZE / 2 + widthShift;
             rect_coords.Bottom = rect_coords.Top + (SQUARE_HEIGHT);
             rect_coords.Right = rect_coords.Left + (SQUARE_WIDTH);
             if (Get(GameField, j, i) > 0 && Get(GameField, j, i) <= 8) {
-                XColor rect_color = GetFigureColor(Get(GameField, j, i));
-                DrawRect(&rect_coords, &rect_color, True);
+                DrawRect(&rect_coords, GetFigureColor(Get(GameField, j, i)), True);
             } else {
-                DrawRect(&rect_coords, &background_color, True);
+                DrawRect(&rect_coords, EGrey, True);
             }
         }
     }
-    XFreeFont(display, font);
     EndDraw();
 }
 
-void DrawMenu(Menu* menuMessage) {
+void DrawMenu(Menu *menuMessage) {
     BeginDraw();
-    ClearScreen();
-    XColor colorBorder = GetColor(EWhite);
 
-    int totalWidth = MENU_WIDTH;
-    int totalHeight = MENU_HEIGHT;
+    int widthShift;
+    int heightShift;
+    DrawBaseMenuShape(&widthShift, &heightShift);
 
-    int widthShift = (currentScreenWidth - totalWidth) / 2;
-    int heightShift = (currentScreenHeight - totalHeight) / 2;
-    widthShift = (widthShift > 0) ? widthShift : 0;
-    heightShift = (heightShift > 0) ? heightShift : 0;
+    for (int i = 0; i < Size(menuMessage->MenuEntries); i++) {
+        int top = heightShift + MENU_DEAD_ZONE + i * (MENU_DEAD_ZONE + MENU_DEAD_ZONE * 2);
+        int left = widthShift + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
+        int bottom = top + MENU_DEAD_ZONE * 2;
+        int right = left + MENU_WIDTH - MENU_DEAD_ZONE * 2;
+        MenuEntry *pEntry = (MenuEntry *) GetAt(menuMessage->MenuEntries, i);
 
-    XColor colorMenuBorder = GetColor(EWhite);
-    XColor colorMenuBack = GetColor(EDarkGrey);
-    XColor colorMenuItem = GetColor(EGrey);
-    XColor colorMenuItemSelected = GetColor(EOrange);
-    XSetForeground(display, gc, colorMenuBack.pixel);
-    XFillRectangle(display, activeBuffer, gc,widthShift , heightShift,
-                   totalWidth, totalHeight);
-    XSetForeground(display, gc, colorMenuBorder.pixel);
-    XDrawRectangle(display, activeBuffer, gc,widthShift , heightShift,
-                   totalWidth, totalHeight);
-    const char * fontname = "-misc-fixed-medium-r-normal--20-200-75-75-c-100-koi8-r"; // -*-helvetica-*-r-*-*-14-*-*-*-*-*-*-*
-    XFontStruct* font = XLoadQueryFont(display, fontname);
-    /* If the font could not be loaded, revert to the "fixed" font. */
+        if (menuMessage->currentSelection == i)
+            XSetForeground(display, gc, GetColor(EOrange).pixel);
+        else if (pEntry->isActive == False)
+            XSetForeground(display, gc, GetColor(EDarkGrey).pixel);
+        else
+            XSetForeground(display, gc, GetColor(EGrey).pixel);
 
-    XSetFont (display, gc, font->fid);
-    for(int i = 0; i < Size(menuMessage->MenuEntries); i++) {
-        MenuEntry* pEntry = (MenuEntry*)GetAt(menuMessage->MenuEntries, i);
-        if(pEntry->type == EAction) { // pEntry->isActive == FALSE
-            int top = heightShift + MENU_DEAD_ZONE + i * (MENU_DEAD_ZONE + MENU_DEAD_ZONE * 2);
-            int left = widthShift + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
-            int bottom = top + MENU_DEAD_ZONE * 2;
-            int right = left + totalWidth - MENU_DEAD_ZONE * 2;
-            if (menuMessage->currentSelection == i)
-                XSetForeground(display, gc, colorMenuItemSelected.pixel);
-            else if (pEntry->isActive == False)
-                XSetForeground(display, gc, colorMenuBack.pixel);
-            else
-                XSetForeground(display, gc, colorMenuItem.pixel);
-            XFillRectangle(display, activeBuffer, gc,left , top,
-                           right - left, bottom - top);
-            if (pEntry->isActive == True)
-                XSetForeground(display, gc, colorMenuBorder.pixel);
-            else
-                XSetForeground(display, gc, colorMenuItem.pixel);
-            XDrawRectangle(display, activeBuffer, gc,left , top,
-                           right - left, bottom - top);
-            // TEXT
-            int temp1 = font->per_char->ascent;
-            int temp2 = font->per_char->descent;
-            XDrawString(display, activeBuffer, gc, left + ((MENU_VALID_DRAW_ZONE - (pEntry->name->StrLen * font->per_char->width))/ 2),
-                        top + ((40 - font->per_char->ascent)), StringToCString(pEntry->name), pEntry->name->StrLen);
-        }
-        if(pEntry->type == ESlider) {
-            int top = heightShift + MENU_DEAD_ZONE + i * (MENU_DEAD_ZONE + MENU_DEAD_ZONE * 2);
-            int left = widthShift + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
-            int bottom = top + MENU_DEAD_ZONE * 2;
-            int right = left + totalWidth - MENU_DEAD_ZONE * 2;
-            if (menuMessage->currentSelection == i)
-                XSetForeground(display, gc, colorMenuItemSelected.pixel);
-            else if (pEntry->isActive == False)
-                XSetForeground(display, gc, colorMenuBack.pixel);
-            else
-                XSetForeground(display, gc, colorMenuItem.pixel);
-            XFillRectangle(display, activeBuffer, gc,left , top,
-                           right - left, bottom - top);
-            if (pEntry->isActive == True)
-                XSetForeground(display, gc, colorMenuBorder.pixel);
-            else
-                XSetForeground(display, gc, colorMenuItem.pixel);
-            XDrawRectangle(display, activeBuffer, gc,left , top,
-                           right - left, bottom - top);
-            int temp1 = font->per_char->ascent;
-            int temp2 = font->per_char->descent;
-;
-            SliderEntry* sliderEntry = (SliderEntry*)pEntry;
+        XFillRectangle(display, activeBuffer, gc, left, top, right - left, bottom - top);
+
+        if (pEntry->isActive == True)
+            XSetForeground(display, gc, GetColor(EWhite).pixel);
+        else
+            XSetForeground(display, gc, GetColor(EGrey).pixel);
+        XDrawRectangle(display, activeBuffer, gc, left, top,
+                       right - left, bottom - top);
+
+        if (pEntry->type == EAction) {
+            XDrawString(display, activeBuffer, gc, left + ((MENU_VALID_DRAW_ZONE - (pEntry->name->StrLen *
+                                                                                    font->per_char->width)) / 2),
+                        top + ((40 - font->per_char->ascent)),
+                        StringToCString(pEntry->name), pEntry->name->StrLen);
+        } else if (pEntry->type == ESlider) {
+            SliderEntry *sliderEntry = (SliderEntry *) pEntry;
             char number[128];
             sprintf(number, "%s <- %d ->", StringToCString(pEntry->name), sliderEntry->currentValue);
-            XDrawString(display, activeBuffer, gc, left + ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width))/ 2), top + ((40 - font->per_char->ascent)), number, strlen(number));
-        }
-        if(pEntry->type == ESelectionList) {
-            int top = heightShift + MENU_DEAD_ZONE + i * (MENU_DEAD_ZONE + MENU_DEAD_ZONE * 2);
-            int left = widthShift + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
-            int bottom = top + MENU_DEAD_ZONE * 2;
-            int right = left + totalWidth - MENU_DEAD_ZONE * 2;
-            if (menuMessage->currentSelection == i)
-                XSetForeground(display, gc, colorMenuItemSelected.pixel);
-            else if (pEntry->isActive == False)
-                XSetForeground(display, gc, colorMenuBack.pixel);
-            else
-                XSetForeground(display, gc, colorMenuItem.pixel);
-            XFillRectangle(display, activeBuffer, gc,left , top,
-                           right - left, bottom - top);
-            if (pEntry->isActive == True)
-                XSetForeground(display, gc, colorMenuBorder.pixel);
-            else
-                XSetForeground(display, gc, colorMenuItem.pixel);
-            XDrawRectangle(display, activeBuffer, gc,left , top,
-                           right - left, bottom - top);
-            int temp1 = font->per_char->ascent;
-            int temp2 = font->per_char->descent;
-
-            SelectorEntry* entry = (SelectorEntry*)pEntry;
+            XDrawString(display, activeBuffer, gc, left + ((MENU_VALID_DRAW_ZONE - (strlen(number) *
+                                                                                    font->per_char->width)) / 2),
+                        top + ((40 - font->per_char->ascent)), number, strlen(number));
+        } else if (pEntry->type == ESelectionList) {
+            SelectorEntry *entry = (SelectorEntry *) pEntry;
             String string = GetAt(entry->selectionEntries, entry->currentSelected);
             char number[128];
             sprintf(number, "%s <- %s ->", StringToCString(pEntry->name), StringToCString(string));
-            XDrawString(display, activeBuffer, gc, left + ((MENU_VALID_DRAW_ZONE - (strlen(number) * font->per_char->width))/ 2), top + ((40 - font->per_char->ascent)), number, strlen(number));
-
+            XDrawString(display, activeBuffer, gc, left + ((MENU_VALID_DRAW_ZONE - (strlen(number) *
+                                                                                    font->per_char->width)) / 2),
+                        top + ((40 - font->per_char->ascent)), number, strlen(number));
         }
     }
-    XFreeFont(display, font);
     EndDraw();
 }
 
@@ -912,6 +802,7 @@ void ResizeScreen(int height, int width) {
     buffer1 = XCreatePixmap(display, window, currentScreenWidth, currentScreenHeight, screenDepth);
     buffer2 = XCreatePixmap(display, window, currentScreenWidth, currentScreenHeight, screenDepth);
     activeBuffer = buffer1;
+    currentPixmap = 0;
     RedrawScreen();
 }
 
@@ -920,14 +811,11 @@ void BeginDraw() {
 }
 
 void EndDraw() {
-    XCopyArea(display, activeBuffer, window, gc,0,0, currentScreenWidth, currentScreenHeight, 0, 0);
-    if (currentPixmap == 0)
-    {
+    XCopyArea(display, activeBuffer, window, gc, 0, 0, currentScreenWidth, currentScreenHeight, 0, 0);
+    if (currentPixmap == 0) {
         activeBuffer = buffer2;
         currentPixmap = 1;
-    }
-    else
-    {
+    } else {
         activeBuffer = buffer1;
         currentPixmap = 0;
     }
@@ -942,7 +830,7 @@ void PutDrawMessage(HANDLE hMessage) {
     GameMessage message;
     message.type = EDrawMessage;
     DrawMessage *pDrawMsg = (DrawMessage *) hMessage;
-    if(!hDrawQueue) {
+    if (!hDrawQueue) {
         return;
     }
     if (pDrawMsg != NULL) {
