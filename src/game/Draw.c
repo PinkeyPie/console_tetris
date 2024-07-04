@@ -291,10 +291,22 @@ void DrawLoop() {
             GameMessage *msg = (GameMessage *) GetAt(hCurrentTasks, 0);
             switch (msg->messageInfo.drawMessage.drawTarget) {
                 case EExpose: {
+                    printf("Exposure event\r\n");
                     if (msg->messageInfo.drawMessage.score != 0) {
                         break;
                     }
-                    RedrawScreen();
+                    if (currentPixmap == 0)
+                    {
+                        currentPixmap = 1;
+                        activeBuffer = buffer2;
+                    }
+                    else
+                    {
+                        currentPixmap = 0;
+                        activeBuffer = buffer1;
+                    }
+                    EndDraw();
+
                     if (!initialized) { // Yes it is crunch, we need to replace
                         ControlMessage message;
                         message.controlTarget = EReadyPrint;
@@ -644,30 +656,23 @@ void PlayFieldDraw() {
     XDrawRectangle(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH, heightShift +
                                                                                       font->per_char->ascent * 2,
                    (SQUARE_WIDTH + BORDER_SIZE) * 4, (SQUARE_HEIGHT + BORDER_SIZE) * 4);
-    String scoreLabel = FromCString("Score:");
-    String figureLabel = FromCString("Next figure:");
+
     sprintf(stringBuffer, "%d", scoreLoc);
-    String scoreNumber = FromCString(stringBuffer);
     XDrawString(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4
-                                                                                      - (scoreNumber->StrLen *
+                                                                                      - (strlen(stringBuffer)*
                                                                                          font->per_char->width)) / 2),
                 heightShift + font->per_char->ascent * 6 + (SQUARE_WIDTH + BORDER_SIZE) * 4,
-                StringToCString(scoreNumber), scoreNumber->StrLen);
+                stringBuffer, strlen(stringBuffer));
 
     XDrawString(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4
-                                                                                      - (figureLabel->StrLen *
+                                                                                      - (strlen("Next figure:") *
                                                                                          font->per_char->width)) / 2),
-                heightShift + (font->per_char->ascent + font->per_char->ascent / 2), StringToCString(figureLabel),
-                figureLabel->StrLen);
+                heightShift + (font->per_char->ascent + font->per_char->ascent / 2), "Next figure:",strlen("Next figure:"));
     XDrawString(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
-                                                                                      (scoreLabel->StrLen *
+                                                                                      (strlen("Score:") *
                                                                                        font->per_char->width)) / 2),
                 heightShift + font->per_char->ascent * 4 + (SQUARE_WIDTH + BORDER_SIZE) * 4,
-                StringToCString(scoreLabel), scoreLabel->StrLen);
-
-    Destroy(scoreLabel);
-    Destroy(scoreNumber);
-    Destroy(figureLabel);
+                "Score:", strlen("Score:"));
 
     if (nextFigure) {
         int maxCoordsHeight = 0;
@@ -739,15 +744,37 @@ void DrawMenu(Menu *menuMessage) {
 }
 
 void ResizeScreen(int height, int width) {
-    currentScreenHeight = height;
-    currentScreenWidth = width;
-    XFreePixmap(display, buffer1);
-    XFreePixmap(display, buffer2);
-    buffer1 = XCreatePixmap(display, window, currentScreenWidth, currentScreenHeight, screenDepth);
-    buffer2 = XCreatePixmap(display, window, currentScreenWidth, currentScreenHeight, screenDepth);
-    activeBuffer = buffer1;
-    currentPixmap = 0;
-    RedrawScreen();
+    if (currentScreenHeight * currentScreenWidth < height * width)
+    {
+        currentScreenHeight = height;
+        currentScreenWidth = width;
+        if (currentPixmap == 0) // buffer 2 on screen
+        {
+            XFreePixmap(display, buffer1);
+            buffer1 = XCreatePixmap(display, window, currentScreenWidth, currentScreenHeight, screenDepth);
+            activeBuffer = buffer1;
+            RedrawScreen();
+            XFreePixmap(display, buffer2);
+            buffer2 = XCreatePixmap(display, window, currentScreenWidth, currentScreenHeight, screenDepth);
+            activeBuffer = buffer2;
+        }
+        else // buffer 1 on screen
+        {
+            XFreePixmap(display, buffer2);
+            buffer2 = XCreatePixmap(display, window, currentScreenWidth, currentScreenHeight, screenDepth);
+            activeBuffer = buffer2;
+            RedrawScreen();
+            XFreePixmap(display, buffer1);
+            buffer1 = XCreatePixmap(display, window, currentScreenWidth, currentScreenHeight, screenDepth);
+            activeBuffer = buffer1;
+        }
+    }
+    else
+    {
+        currentScreenHeight = height;
+        currentScreenWidth = width;
+        RedrawScreen();
+    }
 }
 
 void BeginDraw() {
