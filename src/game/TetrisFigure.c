@@ -473,4 +473,6 @@ void SetTetrisFigureCoordinates(HANDLE hFigure, COORD coords) {
     }
 }
 
-BOOL GetFigurePixels(DWORD dwPixelsList) {}
+BOOL GetFigurePixels(DWORD dwPixelsList) {
+    return FALSE;
+}

@@ -14,7 +14,6 @@ typedef enum EDrawTarget {
     EResize,
     EFigureMove,
     EFieldRedraw,
-    ERemoveRow,
     EMenu,
     EUserName,
     EScore,

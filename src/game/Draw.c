@@ -65,6 +65,9 @@ HANDLE hDrawQueue = NULL;
 pthread_mutex_t drawQueueMut;
 pthread_cond_t drawQueueCond;
 
+
+XTextProperty windowName, iconName;
+
 GameState state = EStateMenu;
 char stringBuffer[128];
 
@@ -111,7 +114,6 @@ static void SetWindowManagerHints(
     XSizeHints sizeHints;
     XWMHints xwmHints;
     XClassHint classHint;
-    XTextProperty windowName, iconName;
 
     if (!XStringListToTextProperty(&ptrITitle, 1, &windowName) ||
         !XStringListToTextProperty(&ptrITitle, 1, &iconName)) {
@@ -207,7 +209,9 @@ void *X11EventHandler(void *args) {
                 msg.InputData.keycode = report.xkey.keycode;
                 msg.InputData.mouseCoord.X = report.xkey.x;
                 msg.InputData.mouseCoord.Y = report.xkey.y;
-                msg.InputData.keystring = XKeysymToString(XKeycodeToKeysym(display, report.xkey.keycode, 0));
+                char* temp = XKeysymToString(XKeycodeToKeysym(display, report.xkey.keycode, 0));
+                msg.InputData.keystring = (char*)malloc(strlen(temp) + 1);
+                strcpy(msg.InputData.keystring, temp);
                 gameMessage.messageInfo.controlMessage = msg;
                 PutControlMessage(&gameMessage);
                 break;
@@ -401,6 +405,12 @@ void DrawLoop() {
 }
 
 void DeinitResources() {
+    if (lastUsedName)
+        free(lastUsedName);
+    if (lastUsedScores)
+        free(lastUsedScores);
+//    XFree(&iconName);
+//    XFree(&windowName);
     XFreeGC(display, gc);
     XSync(display, 0);
     XFreePixmap(display, buffer1);
@@ -522,7 +532,9 @@ void UserNameDraw(GameMessage *msg) {
     int height;
     DrawBaseMenuShape(&width, &height);
 
-    sprintf(stringBuffer, "Enter your name: %s", StringToCString(username)); //
+    char* temp = StringToCString(username);
+    sprintf(stringBuffer, "Enter your name: %s", temp); //
+    free(temp);
     height += MENU_WIDTH / 2;
     height -= font->per_char->ascent * 2;
     XDrawString(display, activeBuffer, gc,
@@ -548,7 +560,7 @@ void EndGameDraw() {
     int height;
     DrawBaseMenuShape(&width, &height);
 
-    sprintf(stringBuffer, "Your score: %d", scoreLoc); //
+    sprintf(stringBuffer, "Your score: %llu", scoreLoc); //
 
     height += MENU_WIDTH / 2 - font->per_char->ascent * 6 - font->per_char->ascent / 2 - MENU_DEAD_ZONE / 2 -
               MENU_DEAD_ZONE - 6;
@@ -654,7 +666,7 @@ void PlayFieldDraw() {
                                                                                       font->per_char->ascent * 2,
                    (SQUARE_WIDTH + BORDER_SIZE) * 4, (SQUARE_HEIGHT + BORDER_SIZE) * 4);
 
-    sprintf(stringBuffer, "%d", scoreLoc);
+    sprintf(stringBuffer, "%llu", scoreLoc);
     XDrawString(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4
                                                                 - (strlen(stringBuffer) * font->per_char->width)) / 2),
                 heightShift + font->per_char->ascent * 6 + (SQUARE_WIDTH + BORDER_SIZE) * 4,
@@ -696,11 +708,13 @@ void PlayFieldDraw() {
         String noFigure = FromCString("??????");
         for (int i = 0; i < 4; i++)
         {
+            char* temp = StringToCString(noFigure);
             XDrawString(display, activeBuffer, gc,
                         widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
                                                                    (noFigure->StrLen * font->per_char->width)) / 2),
                         heightShift + font->per_char->ascent * (i + 1) + (SQUARE_WIDTH + BORDER_SIZE) * 2,
-                        StringToCString(noFigure), noFigure->StrLen);
+                        temp, noFigure->StrLen);
+            free(temp);
         }
         Destroy(noFigure);
     }
@@ -721,19 +735,22 @@ void DrawMenu(Menu *menuMessage) {
         int bottom = top + MENU_DEAD_ZONE * 2;
         int right = left + MENU_WIDTH - MENU_DEAD_ZONE * 2;
         MenuEntry *pEntry = (MenuEntry *) GetAt(menuMessage->MenuEntries, i);
-
+        char* temp = StringToCString(pEntry->name);
         if (pEntry->type == EAction) {
-            DrawMenuEntry(top, left, bottom, right, StringToCString(pEntry->name), pEntry->isActive , menuMessage->currentSelection == i);
+            DrawMenuEntry(top, left, bottom, right, temp, pEntry->isActive , menuMessage->currentSelection == i);
         } else if (pEntry->type == ESlider) {
             SliderEntry *sliderEntry = (SliderEntry *) pEntry;
-            sprintf(stringBuffer, "%s <- %d ->", StringToCString(pEntry->name), sliderEntry->currentValue);
+            sprintf(stringBuffer, "%s <- %d ->", temp, sliderEntry->currentValue);
             DrawMenuEntry(top, left, bottom, right, stringBuffer, pEntry->isActive , menuMessage->currentSelection == i);
         } else if (pEntry->type == ESelectionList) {
             SelectorEntry *entry = (SelectorEntry *) pEntry;
             String string = GetAt(entry->selectionEntries, entry->currentSelected);
-            sprintf(stringBuffer, "%s <- %s ->", StringToCString(pEntry->name), StringToCString(string));
+            char* temp2 =  StringToCString(string);
+            sprintf(stringBuffer, "%s <- %s ->", temp, temp2);
+            free(temp2);
             DrawMenuEntry(top, left, bottom, right, stringBuffer, pEntry->isActive , menuMessage->currentSelection == i);
         }
+        free(temp);
     }
     EndDraw();
 }

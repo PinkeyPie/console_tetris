@@ -51,7 +51,7 @@ static HANDLE MainMenu = NULL;
 static HANDLE SettingsMenu = NULL;
 static GameState currentState = EMainMenu;
 static GameState currentMenuState = 1;
-static pthread_t tickThread;
+static pthread_t tickThread = 0;
 static BOOL TickEnabled = FALSE;
 static BOOL exitGame = FALSE;
 static String userName = NULL;
@@ -334,6 +334,7 @@ void StartGame(DWORD Param) {
     currentState = EGame;
     bEndGame = FALSE;
     if(!TickEnabled) {
+        pthread_join(tickThread, NULL);
         pthread_create(&tickThread, NULL, TickLoop, NULL);
     }
 }
@@ -701,10 +702,11 @@ void* GameLoop(void*) {
                                             }
                                         }
                                     }
-                                    printf("code: %d\n", key);
+                                    printf("code: %llu\n", key);
                                     break;
                                 }
                             }
+                            free(controlMessage.InputData.keystring);
                             break;
                         }
                         case EReadyPrint:

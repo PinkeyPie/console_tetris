@@ -126,8 +126,10 @@ BOOL ListRemoveAt(HANDLE hList, size_t nPosition) {
         }
         if (pDelMem->pNext != NULL) {
             list->root = list->root->pNext;
-            free(pDelMem);
+        } else {
+            list->root = NULL;
         }
+        free(pDelMem);
     }
     else {
         int nIter = 0;
