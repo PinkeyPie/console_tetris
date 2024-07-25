@@ -358,9 +358,6 @@ void DrawLoop() {
                     RedrawScreen();
                     break;
                 }
-                case ERemoveRow:
-                    printf("WARNING: Not implemented\n");
-                    break;
                 case EMenu: {
                     state = EStateMenu;
                     Menu *menu = (Menu *) msg->messageInfo.drawMessage.menuMessage; // Check memory
@@ -659,19 +656,17 @@ void PlayFieldDraw() {
 
     sprintf(stringBuffer, "%d", scoreLoc);
     XDrawString(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4
-                                                                                      - (strlen(stringBuffer)*
-                                                                                         font->per_char->width)) / 2),
+                                                                - (strlen(stringBuffer) * font->per_char->width)) / 2),
                 heightShift + font->per_char->ascent * 6 + (SQUARE_WIDTH + BORDER_SIZE) * 4,
                 stringBuffer, strlen(stringBuffer));
 
     XDrawString(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4
-                                                                                      - (strlen("Next figure:") *
-                                                                                         font->per_char->width)) / 2),
+                                                              - (strlen("Next figure:") * font->per_char->width)) / 2),
                 heightShift + (font->per_char->ascent + font->per_char->ascent / 2), "Next figure:",strlen("Next figure:"));
     XDrawString(display, activeBuffer, gc, widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
                                                                                       (strlen("Score:") *
                                                                                        font->per_char->width)) / 2),
-                heightShift + font->per_char->ascent * 4 + (SQUARE_WIDTH + BORDER_SIZE) * 4,
+                heightShift + (font->per_char->ascent + SQUARE_WIDTH + BORDER_SIZE) * 4,
                 "Score:", strlen("Score:"));
 
     if (nextFigure) {
@@ -692,8 +687,8 @@ void PlayFieldDraw() {
         for (int i = 0; i < Size(nextFigure->hCoordsList); i++) {
             COORD *coord = (COORD *) GetAt(nextFigure->hCoordsList, i);
             XSetForeground(display, gc, GetColor(GetFigureColor(nextFigure->figureType)).pixel);
-            XFillRectangle(display, activeBuffer, gc, figureCentreWidth + widthShift + totalWidth + SQUARE_WIDTH +
-                                                      BORDER_SIZE + (SQUARE_WIDTH + BORDER_SIZE) * coord->X,
+            XFillRectangle(display, activeBuffer, gc, figureCentreWidth + widthShift + totalWidth +
+                                (SQUARE_WIDTH + BORDER_SIZE) * (coord->X+1),
                            font->per_char->ascent * 2 + figureCentreHeight + heightShift + BORDER_SIZE / 2 +
                            (SQUARE_HEIGHT + BORDER_SIZE) * coord->Y, SQUARE_WIDTH, SQUARE_HEIGHT);
         }
@@ -704,7 +699,7 @@ void PlayFieldDraw() {
             XDrawString(display, activeBuffer, gc,
                         widthShift + totalWidth + SQUARE_WIDTH + (((SQUARE_WIDTH + BORDER_SIZE) * 4 -
                                                                    (noFigure->StrLen * font->per_char->width)) / 2),
-                        heightShift + font->per_char->ascent * i + font->per_char->ascent + (SQUARE_WIDTH + BORDER_SIZE) * 2,
+                        heightShift + font->per_char->ascent * (i + 1) + (SQUARE_WIDTH + BORDER_SIZE) * 2,
                         StringToCString(noFigure), noFigure->StrLen);
         }
         Destroy(noFigure);
@@ -721,7 +716,7 @@ void DrawMenu(Menu *menuMessage) {
     DrawBaseMenuShape(&widthShift, &heightShift);
 
     for (int i = 0; i < Size(menuMessage->MenuEntries); i++) {
-        int top = heightShift + MENU_DEAD_ZONE + i * (MENU_DEAD_ZONE + MENU_DEAD_ZONE * 2);
+        int top = heightShift + MENU_DEAD_ZONE + i * (MENU_DEAD_ZONE * 3);
         int left = widthShift + MENU_DEAD_ZONE; // (300 - 40 = 260 - 20 = 240 = 30 from left)
         int bottom = top + MENU_DEAD_ZONE * 2;
         int right = left + MENU_WIDTH - MENU_DEAD_ZONE * 2;
