@@ -1,7 +1,11 @@
 #include <stdlib.h>
 #include "GameLogic.h"
 #include "types.h"
-#include "Draw.h"
+#ifdef CURSES_LIB
+#include "Curses/Draw.h"
+#else
+#include "X11/Draw.h"
+#endif
 #include "Collection.h"
 #include "pthread.h"
 #include "TetrisFigure.h"
@@ -11,6 +15,7 @@
 #include "Settings.h"
 #include "wchar.h"
 #include "stdarg.h"
+#include "unistd.h"
 
 #define GAME_FPS 16600
 #define ONE_SECOND 900*1000

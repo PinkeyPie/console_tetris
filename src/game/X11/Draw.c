@@ -1,13 +1,13 @@
 #include <malloc.h>
 #include "Draw.h"
 #include "pthread.h"
-#include "TetrisFigure.h"
+#include "../TetrisFigure.h"
 #include "Collection.h"
-#include "GameLogic.h"
+#include "../GameLogic.h"
 #include "types.h"
 #include "stdio.h"
 #include <assert.h>
-#include "TwoDimArray.h"
+#include "../TwoDimArray.h"
 #include "Colors.h"
 
 // TODO: Revert foreground color
@@ -190,7 +190,7 @@ Color GetFigureColor(EFigure figureType) {
     }
 }
 
-void *X11EventHandler(void *args) {
+void *DrawEventHandler(void *args) {
     while (True) {
         XNextEvent(display, &report);
         switch (report.type) {

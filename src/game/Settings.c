@@ -3,7 +3,11 @@
 #include "Collection.h"
 #include "StringLib.h"
 #include "malloc.h"
-#include "Draw.h"
+#ifdef CURSES_LIB
+#include "Curses/Draw.h"
+#else
+#include "X11/Draw.h"
+#endif
 
 static int menuIds = 1;
 
